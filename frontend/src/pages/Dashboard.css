@@ -43,11 +43,16 @@
 
 /* ── Sidebar ─────────────────────────────────────────────── */
 .db-side {
-  width: var(--side-w); min-height: 100vh;
-  background: var(--bg2); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column;
-  position: sticky; top: 0; height: 100vh;
-  overflow-y: auto; z-index: 50; flex-shrink: 0;
+  width: var(--side-w);
+  height: 100vh;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  overflow: hidden; /* 👈 cambio importante */
+  z-index: 50;
 }
 .db-side-top {
   display: flex; align-items: center; justify-content: space-between;
@@ -66,8 +71,12 @@
 
 /* Nav */
 .db-nav {
-  flex: 1; display: flex; flex-direction: column;
-  gap: 2px; padding: 14px 10px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 10px;
+  overflow-y: auto; /* 👈 el scroll ahora está aquí */
 }
 .db-nav-item {
   display: flex; align-items: center; gap: 10px;
@@ -227,6 +236,7 @@
 
 /* ── Mobile sidebar fix: ocupa todo el ancho real ─────────── */
 @media (max-width: 768px) {
+
   .db {
     flex-direction: column;
   }
@@ -247,12 +257,25 @@
   }
 
   .db-nav {
-    flex: 1;
-    overflow-y: auto;
-  }
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 10px;
+}
 
   .db-signout {
-    margin-top: auto;
-    padding-bottom: 18px;
-  }
+  margin: auto 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 9px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  width: calc(100% - 20px);
+}
+
 }
