@@ -264,7 +264,7 @@
 }
 
   .db-signout {
-  margin: auto 10px 20px;
+  margin: 20px 10px 60px; /* abajo más grande = botón más arriba */
   display: flex;
   align-items: center;
   gap: 8px;

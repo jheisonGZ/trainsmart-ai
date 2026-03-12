@@ -447,6 +447,6 @@ html, body, #root {
 }
 
 /* Móvil muy pequeño */
-@media (max-width: 360px) {
-  .lr-panel { padding: 0 16px; }
+@media (max-width: 260px) {
+  .lr-panel { padding:  15px; }
 }
