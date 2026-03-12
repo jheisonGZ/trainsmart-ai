@@ -4,6 +4,7 @@ import { auth, db } from "../firebase";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { gsap } from "gsap";
 import Swal from "sweetalert2";
+import { useBlockNavigation } from "../hooks/useBlockNavigation";
 import {
   User, Calendar, Weight, Ruler, Target, Clock,
   Dumbbell, Edit3, ArrowLeft, CheckCircle2,
@@ -65,6 +66,8 @@ function ProfileSummary({ profile, onEdit }: { profile: ProfileData; onEdit: () 
   const imcCat   = imcCategory(profile.imc);
   const firstName = profile.name?.split(" ")[0] ?? "Usuario";
 
+  useBlockNavigation(); // ← dentro del componente ✅
+
   useEffect(() => {
     const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
     tl.fromTo(cardRef.current, { y: 28, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55 });
@@ -78,7 +81,7 @@ function ProfileSummary({ profile, onEdit }: { profile: ProfileData; onEdit: () 
   return (
     <div className="pf">
       <header className="pf-header">
-        <button className="pf-back" onClick={() => navigate("/home")}>
+        <button className="pf-back" onClick={() => navigate("/home", { replace: true })}>
           <ArrowLeft size={15} /> <span>Dashboard</span>
         </button>
         <div className="pf-logo">Train<span>Smart</span> <em>AI</em></div>
@@ -89,8 +92,6 @@ function ProfileSummary({ profile, onEdit }: { profile: ProfileData; onEdit: () 
 
       <main className="pf-sum-main">
         <div className="pf-sum-card" ref={cardRef}>
-
-          {/* Hero */}
           <div className="pf-sum-hero">
             <div className="pf-sum-avatar">
               {user?.photoURL
@@ -106,7 +107,6 @@ function ProfileSummary({ profile, onEdit }: { profile: ProfileData; onEdit: () 
             </button>
           </div>
 
-          {/* IMC */}
           <div className="pf-sum-imc">
             <div className="pf-sum-imc-left">
               <span className="pf-sum-imc-val" style={{ color: imcCat.color }}>{profile.imc}</span>
@@ -125,16 +125,15 @@ function ProfileSummary({ profile, onEdit }: { profile: ProfileData; onEdit: () 
             </div>
           </div>
 
-          {/* Grid datos */}
           <div className="pf-sum-grid">
             {[
-              { icon: <Calendar size={16} />, label: "Edad",        val: `${profile.age} años` },
-              { icon: <User size={16} />,     label: "Sexo",        val: sexLabel[profile.sex] ?? profile.sex },
-              { icon: <Weight size={16} />,   label: "Peso",        val: `${profile.weight_kg} kg` },
-              { icon: <Ruler size={16} />,    label: "Altura",      val: `${profile.height_cm} cm` },
-              { icon: <Zap size={16} />,      label: "Experiencia", val: expLabel[profile.experience_level] ?? profile.experience_level },
+              { icon: <Calendar size={16} />, label: "Edad",          val: `${profile.age} años` },
+              { icon: <User size={16} />,     label: "Sexo",          val: sexLabel[profile.sex] ?? profile.sex },
+              { icon: <Weight size={16} />,   label: "Peso",          val: `${profile.weight_kg} kg` },
+              { icon: <Ruler size={16} />,    label: "Altura",        val: `${profile.height_cm} cm` },
+              { icon: <Zap size={16} />,      label: "Experiencia",   val: expLabel[profile.experience_level] ?? profile.experience_level },
               { icon: goalLabel[profile.goal]?.icon ?? <Target size={16} />, label: "Objetivo", val: goalLabel[profile.goal]?.label ?? profile.goal },
-              { icon: <Calendar size={16} />, label: "Días/semana", val: `${profile.days_per_week} días` },
+              { icon: <Calendar size={16} />, label: "Días/semana",   val: `${profile.days_per_week} días` },
               { icon: <Clock size={16} />,    label: "Tiempo/sesión", val: `${profile.time_per_session} min` },
             ].map(({ icon, label, val }) => (
               <div key={label} className="pf-sum-item">
@@ -146,7 +145,6 @@ function ProfileSummary({ profile, onEdit }: { profile: ProfileData; onEdit: () 
               </div>
             ))}
           </div>
-
         </div>
       </main>
     </div>
@@ -154,10 +152,12 @@ function ProfileSummary({ profile, onEdit }: { profile: ProfileData; onEdit: () 
 }
 
 /* ── Formulario (nuevo + edición) ──────────────────────── */
-function ProfileForm({ existing, onSaved }: { existing: ProfileData | null; onSaved: (p: ProfileData) => void }) {
+function ProfileForm({ existing, onSaved, onCancel }: { existing: ProfileData | null; onSaved: (p: ProfileData) => void; onCancel?: () => void }) {
   const navigate  = useNavigate();
   const user      = auth.currentUser;
   const isEdit    = !!existing;
+
+  useBlockNavigation(); // ← dentro del componente ✅
 
   const [step, setStep]     = useState(0);
   const [saving, setSaving] = useState(false);
@@ -232,7 +232,7 @@ function ProfileForm({ existing, onSaved }: { existing: ProfileData | null; onSa
       });
 
       if (isEdit) onSaved(profileData);
-      else navigate("/dashboard");
+      else navigate("/dashboard", { replace: true });
     } catch {
       Alert.fire({ icon: "error", title: "Error al guardar", text: "Intentá de nuevo." });
     } finally {
@@ -243,10 +243,15 @@ function ProfileForm({ existing, onSaved }: { existing: ProfileData | null; onSa
   return (
     <div className="pf">
       <header className="pf-header">
+        {isEdit && (
+          <button className="pf-back" onClick={() => onCancel?.()}>
+            <ArrowLeft size={15} /> <span>Cancelar</span>
+          </button>
+        )}
         <div className="pf-logo">Train<span>Smart</span> <em>AI</em></div>
         <div className="pf-user">
           <span>{user?.email}</span>
-          <button className="pf-logout" onClick={() => { auth.signOut(); navigate("/"); }}>Salir</button>
+          <button className="pf-logout" onClick={() => { auth.signOut(); navigate("/", { replace: true }); }}>Salir</button>
         </div>
       </header>
 
@@ -414,6 +419,6 @@ export default function Profile() {
   if (loading) return <div className="ts-loading"><span className="ts-spin" /></div>;
 
   if (!profile)  return <ProfileForm existing={null} onSaved={p => { setProfile(p); setEditing(false); }} />;
-  if (editing)   return <ProfileForm existing={profile} onSaved={p => { setProfile(p); setEditing(false); }} />;
+  if (editing)   return <ProfileForm existing={profile} onSaved={p => { setProfile(p); setEditing(false); }} onCancel={() => setEditing(false)} />;
   return <ProfileSummary profile={profile} onEdit={() => setEditing(true)} />;
 }

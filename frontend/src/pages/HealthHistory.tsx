@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useBlockNavigation } from "../hooks/useBlockNavigation";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebase";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -114,6 +115,9 @@ function HealthSummary({ data, onEdit }: { data: HealthData; onEdit: () => void 
   const navigate = useNavigate();
   const cardRef  = useRef<HTMLDivElement>(null);
 
+  // ✔ Hook llamado correctamente
+  useBlockNavigation();
+
   useEffect(() => {
     const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
     tl.fromTo(cardRef.current, { y: 28, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55 });
@@ -127,7 +131,7 @@ function HealthSummary({ data, onEdit }: { data: HealthData; onEdit: () => void 
   return (
     <div className="hh">
       <header className="hh-header">
-        <button className="hh-back" onClick={() => navigate("/home")}>
+        <button className="hh-back" onClick={() => navigate("/home", { replace: true })}>
           <ArrowLeft size={15} /> <span>Dashboard</span>
         </button>
         <div className="hh-logo">Train<span>Smart</span> <em>AI</em></div>
@@ -201,7 +205,7 @@ function HealthSummary({ data, onEdit }: { data: HealthData; onEdit: () => void 
 }
 
 /* ── Formulario de pasos ─────────────────────────────────── */
-function HealthForm({ existing, onSaved }: { existing: HealthData | null; onSaved: (d: HealthData) => void }) {
+function HealthForm({ existing, onSaved, onCancel }: { existing: HealthData | null; onSaved: (d: HealthData) => void; onCancel?: () => void }) {
   const navigate = useNavigate();
   const user = auth.currentUser;
   const isEdit = !!existing;
@@ -217,6 +221,9 @@ function HealthForm({ existing, onSaved }: { existing: HealthData | null; onSave
   const progressRef  = useRef<HTMLDivElement>(null);
   const headerRef    = useRef<HTMLElement>(null);
   const stepsRef     = useRef<HTMLDivElement>(null);
+
+  // Bloquear botón atrás y adelante del navegador
+  useBlockNavigation();
 
   useEffect(() => {
     const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
@@ -301,7 +308,7 @@ function HealthForm({ existing, onSaved }: { existing: HealthData | null; onSave
         showConfirmButton: false,
       });
       if (isEdit) onSaved(saved);
-      else navigate("/home");
+      else navigate("/home", { replace: true });
     } catch {
       Alert.fire({ icon: "error", title: "Error al guardar", text: "Verificá tu conexión e intentá de nuevo." });
     } finally {
@@ -316,7 +323,7 @@ function HealthForm({ existing, onSaved }: { existing: HealthData | null; onSave
   return (
     <div className="hh" ref={containerRef}>
       <header className="hh-header" ref={headerRef}>
-        <button className="hh-back" onClick={() => isEdit ? onSaved(data) : navigate("/home")}>
+        <button className="hh-back" onClick={() => isEdit ? onCancel?.() : navigate("/home", { replace: true })}>
           <ArrowLeft size={15} /> <span>{isEdit ? "Cancelar" : "Dashboard"}</span>
         </button>
         <div className="hh-logo">Train<span>Smart</span> <em>AI</em></div>
@@ -448,6 +455,6 @@ export default function HealthHistory() {
   if (loading) return <div className="ts-loading"><span className="ts-spin" /></div>;
 
   if (!healthData) return <HealthForm existing={null} onSaved={d => { setHealthData(d); setEditing(false); }} />;
-  if (editing)     return <HealthForm existing={healthData} onSaved={d => { setHealthData(d); setEditing(false); }} />;
+  if (editing)     return <HealthForm existing={healthData} onSaved={d => { setHealthData(d); setEditing(false); }} onCancel={() => setEditing(false)} />;
   return <HealthSummary data={healthData} onEdit={() => setEditing(true)} />;
 }

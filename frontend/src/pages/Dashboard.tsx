@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useBlockNavigation } from "../hooks/useBlockNavigation";
 import { useNavigate, useLocation } from "react-router-dom";
 import { auth, db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -39,6 +40,9 @@ export default function Dashboard() {
   const sectionRef = useRef<HTMLElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
+  // Bloquear botón atrás y adelante del navegador
+  useBlockNavigation();
+
   useEffect(() => {
     if (!user) return;
     getDoc(doc(db, "profiles", user.uid))
@@ -46,10 +50,9 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, [user]);
 
-  // Entrada — solo desktop, evita conflicto con transform mobile
   useEffect(() => {
     if (loading) return;
-    if (isMobile()) return; // no animar sidebar en mobile
+    if (isMobile()) return;
 
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
@@ -57,7 +60,6 @@ export default function Dashboard() {
         .fromTo(headerRef.current,  { y: -18, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45 }, "-=0.25")
         .fromTo(sectionRef.current, { y: 24,  opacity: 0 }, { y: 0, opacity: 1, duration: 0.45 }, "-=0.15");
 
-      // Stats: solo si existen en el DOM
       const statEls = document.querySelectorAll(".db-stat");
       if (statEls.length > 0) {
         tl.fromTo(statEls, { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, stagger: 0.07 }, "-=0.3");
@@ -66,13 +68,12 @@ export default function Dashboard() {
     return () => ctx.revert();
   }, [loading]);
 
-  // Menú mobile con GSAP
   useEffect(() => {
     if (!sideRef.current || !overlayRef.current) return;
     if (!isMobile()) return;
 
     if (menuOpen) {
-      gsap.set(sideRef.current, { x: -260 }); // asegura posición inicial
+      gsap.set(sideRef.current, { x: -260 });
       gsap.to(overlayRef.current, { opacity: 1, pointerEvents: "all", duration: 0.2 });
       gsap.to(sideRef.current,    { x: 0, duration: 0.32, ease: "power3.out" });
     } else {
@@ -111,10 +112,8 @@ export default function Dashboard() {
 
   return (
     <div className="db">
-      {/* Overlay mobile */}
       <div ref={overlayRef} className="db-overlay" onClick={() => setMenuOpen(false)} />
 
-      {/* Sidebar */}
       <aside ref={sideRef} className="db-side">
         <div className="db-side-top">
           <div className="db-logo">Train<span>Smart</span> <em>AI</em></div>
@@ -128,7 +127,7 @@ export default function Dashboard() {
             <button
               key={path}
               className={`db-nav-item${location.pathname === path ? " db-nav-item--on" : ""}`}
-              onClick={() => { navigate(path); setMenuOpen(false); }}
+              onClick={() => { navigate(path, { replace: true }); setMenuOpen(false); }}
             >
               <span className="db-nav-icon">{icon}</span>
               <span className="db-nav-label">{label}</span>
@@ -137,15 +136,13 @@ export default function Dashboard() {
           ))}
         </nav>
 
-        <button className="db-signout" onClick={() => { auth.signOut(); navigate("/"); }}>
+        <button className="db-signout" onClick={() => { auth.signOut(); navigate("/", { replace: true }); }}>
           <LogOut size={15} />
           <span>Cerrar sesión</span>
         </button>
       </aside>
 
-      {/* Main */}
       <main className="db-main">
-        {/* Topbar solo mobile */}
         <header className="db-topbar">
           <button className="db-hamburger" onClick={() => setMenuOpen(true)}>
             <Menu size={22} />
@@ -160,7 +157,6 @@ export default function Dashboard() {
         </header>
 
         <div className="db-content">
-          {/* Hero */}
           <div ref={headerRef} className="db-hero">
             <div>
               <p className="db-greeting">{greeting}</p>
@@ -182,7 +178,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Stats */}
           {profile && (
             <div className="db-stats">
               {stats.map(({ icon, label, val }) => (
@@ -197,11 +192,10 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Rutina */}
           <section ref={sectionRef} className="db-section">
             <div className="db-section-head">
               <h2>Rutina de hoy</h2>
-              <button className="db-action" onClick={() => navigate("/routine")}>
+              <button className="db-action" onClick={() => navigate("/routine", { replace: true })}>
                 Generar rutina <ChevronRight size={14} />
               </button>
             </div>
@@ -211,7 +205,7 @@ export default function Dashboard() {
               </div>
               <p className="db-empty-title">Aún no tienes una rutina generada</p>
               <p className="db-empty-sub">La IA creará un plan personalizado basado en tu perfil y objetivos.</p>
-              <button className="db-cta" onClick={() => navigate("/routine")}>
+              <button className="db-cta" onClick={() => navigate("/routine", { replace: true })}>
                 Generar mi primera rutina <ChevronRight size={16} />
               </button>
             </div>
