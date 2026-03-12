@@ -226,30 +226,33 @@
 }
 
 /* ── Mobile sidebar fix: ocupa todo el ancho real ─────────── */
-
 @media (max-width: 768px) {
   .db {
     flex-direction: column;
   }
+
   .db-side {
     width: 260px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
+
   .db-main {
     width: 100%;
   }
+
   .db-hero-right {
     display: none;
   }
+
   .db-nav {
     flex: 1;
     overflow-y: auto;
   }
+
   .db-signout {
-    flex-shrink: 0;
-    position: sticky;
-    bottom: 0;
-    background: var(--bg2);
+    margin-top: auto;
     padding-bottom: 18px;
-    margin-bottom: 0;
   }
 }
