@@ -204,7 +204,7 @@ export default function Login() {
 
       {/* LEFT */}
       <div className="lr-visual">
-        <div className="lr-vbg" style={{ backgroundImage: `url('/images/login.png')` }} />
+        <div className="lr-vbg" style={{ backgroundImage: `url('/images/login.webp')` }} />
         <div className="lr-voverlay" />
         <div className="lr-vcontent">
           <div className="lr-logo">Train<span>Smart</span> <em>AI</em></div>
