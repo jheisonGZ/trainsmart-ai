@@ -13,6 +13,20 @@ import Progress from "../pages/Progress";
 import Login from "../pages/Login";
 import Dashboard from "../pages/Dashboard";
 
+
+// ── Hook para bloquear botón atrás del navegador ─────────────────────────────
+function useBlockBack() {
+  useEffect(() => {
+    // Empuja una entrada extra al historial para "absorber" el botón atrás
+    window.history.pushState(null, "", window.location.href);
+    const handlePop = () => {
+      window.history.pushState(null, "", window.location.href);
+    };
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
+  }, []);
+}
+
 function PrivateRoute({ user, loading, children }: { user: User | null; loading: boolean; children: ReactNode }) {
   if (loading) return <div className="ts-loading"><span className="ts-spin" /></div>;
   if (!user) return <Navigate to="/" replace />;
@@ -70,6 +84,11 @@ function RootRedirect({ user }: { user: User }) {
   return <Navigate to={destination} replace />;
 }
 
+function BlockedRoute({ children }: { children: ReactNode }) {
+  useBlockBack();
+  return <>{children}</>;
+}
+
 export default function AppRoutes() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,9 +112,9 @@ export default function AppRoutes() {
               ? <RootRedirect user={user} />
               : <Navigate to="/" replace />
         } />
-        <Route path="/home"     element={<PrivateRoute user={user} loading={loading}><Dashboard /></PrivateRoute>} />
-        <Route path="/profile"  element={<PrivateRoute user={user} loading={loading}><Profile /></PrivateRoute>} />
-        <Route path="/health"   element={<PrivateRoute user={user} loading={loading}><HealthHistory /></PrivateRoute>} />
+        <Route path="/home"     element={<PrivateRoute user={user} loading={loading}><BlockedRoute><Dashboard /></BlockedRoute></PrivateRoute>} />
+        <Route path="/profile"  element={<PrivateRoute user={user} loading={loading}><BlockedRoute><Profile /></BlockedRoute></PrivateRoute>} />
+        <Route path="/health"   element={<PrivateRoute user={user} loading={loading}><BlockedRoute><HealthHistory /></BlockedRoute></PrivateRoute>} />
         <Route path="/routine"  element={<PrivateRoute user={user} loading={loading}><Routine /></PrivateRoute>} />
         <Route path="/progress" element={<PrivateRoute user={user} loading={loading}><Progress /></PrivateRoute>} />
       </Routes>
