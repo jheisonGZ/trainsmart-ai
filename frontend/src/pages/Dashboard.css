@@ -275,7 +275,7 @@
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.8rem;
-  width: calc(100% - 20px);
+  width: calc(60% - 20px);
 }
 
 }
