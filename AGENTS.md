@@ -1,3 +1,4 @@
+
 # AGENTS.md — TrainSmart AI
 
 > Este archivo le da contexto a cualquier agente de IA (Claude, Cursor, Copilot, etc.)
@@ -23,7 +24,7 @@ El flujo principal es: Registro → Perfil físico → Historial de salud → Ge
 * **React Router v6** para navegación
 * **Firebase Auth** — email/password + Google OAuth
 * **Firestore** — base de datos en tiempo real
-* **GSAP** — animaciones (instalado con `npm install gsap`)
+* **GSAP** — animaciones (`npm install gsap`)
 * **SweetAlert2 (Swal)** — alertas y notificaciones
 * **Lucide React** — iconos
 * **CSS puro** — sin Tailwind, sin styled-components
@@ -33,7 +34,7 @@ El flujo principal es: Registro → Perfil físico → Historial de salud → Ge
 
 * **Node.js + Express**
 * **MySQL + Sequelize**
-* Integración con LLM para generación de rutinas
+* Integración con LLM para generación de rutinas (pendiente)
 
 ---
 
@@ -41,20 +42,23 @@ El flujo principal es: Registro → Perfil físico → Historial de salud → Ge
 
 ```
 trainsmart-ai/
+├── AGENTS.md
+├── README.md
 ├── frontend/
 │   └── src/
 │       ├── pages/
-│       │   ├── Login.tsx          ✅ Funcional
-│       │   ├── Profile.tsx        ✅ Funcional
+│       │   ├── Login.tsx           ✅ Funcional
+│       │   ├── Profile.tsx         ✅ Funcional (vista resumen + formulario 3 pasos)
 │       │   ├── Profile.css
-│       │   ├── Dashboard.tsx      ✅ Funcional
+│       │   ├── HealthHistory.tsx   ✅ Funcional (vista resumen + formulario 4 pasos)
+│       │   ├── HealthHistory.css
+│       │   ├── Dashboard.tsx       ✅ Funcional
 │       │   ├── Dashboard.css
-│       │   ├── HealthHistory.tsx  ⏳ Pendiente (HU-05)
-│       │   ├── Routine.tsx        ⏳ Pendiente (HU-06/07)
-│       │   ├── Progress.tsx       ⏳ Pendiente (HU-10/11)
+│       │   ├── Routine.tsx         ⏳ Pendiente (HU-06/07)
+│       │   ├── Progress.tsx        ⏳ Pendiente (HU-10/11)
 │       ├── routes/
-│       │   └── AppRoutes.tsx      ✅ Funcional
-│       ├── firebase.ts            ✅ Configurado
+│       │   └── AppRoutes.tsx       ✅ Funcional
+│       ├── firebase.ts             ✅ Configurado
 │       ├── App.tsx
 │       └── main.tsx
 ├── backend/
@@ -80,7 +84,7 @@ trainsmart-ai/
   email: string,
   birthdate: string,
   age: number,
-  sex: string,              // 'male' | 'female'
+  sex: string,              // 'male' | 'female' | 'other'
   weight_kg: number,
   height_cm: number,
   imc: number,
@@ -89,8 +93,22 @@ trainsmart-ai/
   goal: string,             // 'lose_fat' | 'gain_muscle' | 'general_fitness' | 'strength'
   days_per_week: number,    // 2-6
   time_per_session: number, // minutos
-  completed: boolean,       // true cuando completó el formulario de perfil
+  completed: boolean,
   created_at: string,
+  updated_at: string
+}
+```
+
+### Colección Firestore: `health_history/{uid}`
+
+```typescript
+{
+  injuries: string[],        // lesiones actuales o pasadas
+  joint_problems: string[],  // problemas articulares
+  conditions: string[],      // condiciones médicas
+  limitations: string[],     // limitaciones físicas
+  notes: string,             // observaciones adicionales (libre)
+  completed: boolean,
   updated_at: string
 }
 ```
@@ -102,11 +120,12 @@ trainsmart-ai/
 ```
 /           → Login (público)
 /dashboard  → RootRedirect:
-              si profiles/{uid}.completed === true → /home
-              si no → /profile
-/profile    → Formulario 3 pasos (privado)
+              1. ¿profiles/{uid}.completed === true?  → NO → /profile
+              2. ¿health_history/{uid}.completed === true? → NO → /health
+              3. Todo completo → /home
+/profile    → Vista resumen perfil / Formulario 3 pasos (privado)
+/health     → Vista resumen historial / Formulario 4 pasos (privado)
 /home       → Dashboard (privado)
-/health     → HealthHistory (privado) ⏳
 /routine    → Routine (privado) ⏳
 /progress   → Progress (privado) ⏳
 ```
@@ -115,6 +134,29 @@ trainsmart-ai/
 
 * `PrivateRoute` — redirige a `/` si no autenticado
 * `PublicRoute` — redirige a `/dashboard` si ya autenticado
+* `RootRedirect` — verifica perfil → historial → dashboard
+
+---
+
+## Patrón de páginas (Profile y HealthHistory)
+
+Ambas páginas siguen el mismo patrón de dos modos:
+
+```typescript
+// Componente principal decide qué renderizar
+export default function Page() {
+  const [data, setData] = useState(null);
+  const [editing, setEditing] = useState(false);
+
+  if (!data)   return <Form existing={null} onSaved={...} />;
+  if (editing) return <Form existing={data} onSaved={...} />;
+  return <Summary data={data} onEdit={() => setEditing(true)} />;
+}
+```
+
+* **Sin datos** → formulario de creación → al guardar navega a `/dashboard` (que redirige al siguiente paso)
+* **Con datos, modo vista** → resumen con tarjetas + botón Editar
+* **Con datos, modo edición** → formulario precargado → al guardar vuelve a vista resumen
 
 ---
 
@@ -124,35 +166,28 @@ trainsmart-ai/
 
 * Variables globales en `:root`: `--r: #ff4a2b`, `--bg: #080808`, `--bg2: #101010`, `--bg3: #181818`, `--border: rgba(255,255,255,0.07)`, `--muted: rgba(255,255,255,0.4)`
 * Tema **oscuro** con acento **rojo** (`#ff4a2b`)
-* Clases con prefijo por página: `db-` (dashboard), `pf-` (profile), etc.
+* Clases con prefijo por página: `db-` (dashboard), `pf-` (profile), `hh-` (health history)
 * **Sin Tailwind** , todo CSS puro en archivos `.css` por página
 
-### TypeScript
+### SweetAlert2
 
-* Siempre tipar interfaces para datos de Firestore
-* Importar `type` separado: `import type { User } from "firebase/auth"`
-* En `useEffect` con `onAuthStateChanged`: tipar el callback `(u: User | null) => {}`
-
-### Notificaciones
-
-* Usar **SweetAlert2** para todas las alertas, errores y confirmaciones
-* Tema oscuro consistente:
+Siempre usar el mixin `Alert` con tema oscuro:
 
 ```typescript
-import Swal from 'sweetalert2';
-Swal.fire({
-  background: '#111',
-  color: '#f0f0f0',
-  confirmButtonColor: '#ff4a2b',
-  iconColor: '#ff4a2b',
+const Alert = Swal.mixin({
+  background: "#111",
+  color: "#f0f0f0",
+  confirmButtonColor: "#ff4a2b",
+  cancelButtonColor: "#222",
+  iconColor: "#ff4a2b",
+  customClass: { popup: "swal-ts-popup", title: "swal-ts-title", confirmButton: "swal-ts-btn" },
 });
 ```
 
-### Animaciones
+### GSAP
 
-* Usar **GSAP** para animaciones de entrada y transiciones
 * En desktop: animar sidebar con `x`, contenido con `y`
-* En mobile: NO animar sidebar en entrada (solo en abrir/cerrar menú hamburguesa)
+* En mobile: NO animar sidebar en entrada (solo abrir/cerrar menú hamburguesa)
 * Siempre verificar si el elemento existe antes de animar:
 
 ```typescript
@@ -162,27 +197,27 @@ if (els.length > 0) gsap.fromTo(els, ...);
 
 ### Imágenes de perfil
 
-* Si `user.photoURL` existe (login con Google) → mostrar foto
-* Si no → mostrar inicial del nombre con círculo rojo
-* Siempre agregar `referrerPolicy="no-referrer"` en `<img>` de Google
+* Si `user.photoURL` existe (Google) → mostrar foto
+* Si no → mostrar inicial con círculo rojo
+* Siempre `referrerPolicy="no-referrer"` en `<img>` de Google
 
 ---
 
 ## Product Backlog — Estado
 
-| HU    | Descripción                                | Estado                                   |
-| ----- | ------------------------------------------- | ---------------------------------------- |
-| HU-01 | Registro de usuario (email + Google)        | ✅ Completado                            |
-| HU-02 | Login seguro                                | ✅ Completado                            |
-| HU-03 | Perfil físico (formulario 3 pasos)         | ✅ Completado                            |
-| HU-04 | Cálculo IMC + validación                  | ✅ Completado (integrado en Profile)     |
-| HU-05 | Historial de salud (lesiones, limitaciones) | ⏳ Pendiente                             |
-| HU-06 | Generación de rutina con IA (LLM)          | ⏳ Pendiente                             |
-| HU-07 | Revisión/aprobación rutina HITL           | ⏳ Pendiente                             |
-| HU-08 | Dashboard diario                            | ✅ Completado (básico, sin rutina aún) |
-| HU-09 | Biblioteca de ejercicios                    | ⏳ Pendiente                             |
-| HU-10 | Registro de progreso + feedback             | ⏳ Pendiente                             |
-| HU-11 | Estadísticas con gráficos                 | ⏳ Pendiente                             |
+| HU    | Descripción                                            | Estado                                   |
+| ----- | ------------------------------------------------------- | ---------------------------------------- |
+| HU-01 | Registro de usuario (email + Google)                    | ✅ Completado                            |
+| HU-02 | Login seguro                                            | ✅ Completado                            |
+| HU-03 | Perfil físico (formulario 3 pasos + vista resumen)     | ✅ Completado                            |
+| HU-04 | Cálculo IMC + validación                              | ✅ Completado                            |
+| HU-05 | Historial de salud (formulario 4 pasos + vista resumen) | ✅ Completado                            |
+| HU-06 | Generación de rutina con IA (LLM)                      | ⏳ Pendiente                             |
+| HU-07 | Revisión/aprobación rutina HITL                       | ⏳ Pendiente                             |
+| HU-08 | Dashboard diario                                        | ✅ Completado (básico, sin rutina aún) |
+| HU-09 | Biblioteca de ejercicios                                | ⏳ Pendiente                             |
+| HU-10 | Registro de progreso + feedback                         | ⏳ Pendiente                             |
+| HU-11 | Estadísticas con gráficos                             | ⏳ Pendiente                             |
 
 ---
 
@@ -190,31 +225,35 @@ if (els.length > 0) gsap.fromTo(els, ...);
 
 * `firebase.ts` — configuración sensible
 * `AppRoutes.tsx` — lógica de guards y redirecciones
-* La colección `profiles` en Firestore — estructura definida
-* Cualquier archivo `.env` — variables de entorno de Firebase
+* Las colecciones `profiles` y `health_history` en Firestore
+* Cualquier archivo `.env`
 
 ---
 
 ## Errores conocidos y su solución
 
-| Error                                    | Causa                                   | Solución                                         |
-| ---------------------------------------- | --------------------------------------- | ------------------------------------------------- |
-| `Cross-Origin-Opener-Policy`en consola | `signInWithPopup`de Google            | Es un warning inofensivo, el login funciona igual |
-| `GSAP target not found`                | Animar elemento que no existe en el DOM | Verificar con `querySelectorAll`antes de animar |
-| Firebase 400 en signUp                   | Email/Password no habilitado            | Firebase Console → Auth → Métodos de acceso    |
-| Dominio no autorizado                    | Deploy en Vercel sin agregar dominio    | Firebase Console → Auth → Dominios autorizados  |
+| Error                                      | Causa                                   | Solución                                         |
+| ------------------------------------------ | --------------------------------------- | ------------------------------------------------- |
+| `Cross-Origin-Opener-Policy`en consola   | `signInWithPopup`de Google            | Warning inofensivo, el login funciona igual       |
+| `GSAP target not found`                  | Animar elemento que no existe en el DOM | Verificar con `querySelectorAll`antes de animar |
+| Firebase 400 en signUp                     | Email/Password no habilitado            | Firebase Console → Auth → Métodos de acceso    |
+| Dominio no autorizado                      | Deploy sin agregar dominio              | Firebase Console → Auth → Dominios autorizados  |
+| Salud muestra formulario en vez de resumen | Código viejo desplegado                | Hacer deploy del nuevo HealthHistory.tsx          |
 
 ---
 
 ## Próximo paso
 
-**HU-05 — Historial de salud:**
-Formulario donde el usuario registra:
+**HU-06 — Generación de rutina con IA:**
 
-* Lesiones actuales o pasadas
-* Problemas articulares
-* Enfermedades crónicas o condiciones médicas
-* Limitaciones físicas
+* Frontend envía `profiles/{uid}` + `health_history/{uid}` al backend
+* Backend construye el prompt y llama al LLM
+* LLM devuelve rutina estructurada en JSON
+* Frontend muestra la rutina para revisión (HU-07 HITL)
+* Usuario aprueba → se guarda en Firestore: `routines/{uid}`
 
-Guardar en Firestore: `health_history/{uid}`
-Esta info la consume el LLM al generar la rutina en HU-06.
+**Requiere definir en el backend:**
+
+* Endpoint: `POST /api/routine/generate`
+* LLM a usar: por definir (OpenAI / Gemini / Claude)
+* Estructura del JSON de respuesta de la rutina
