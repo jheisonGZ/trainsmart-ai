@@ -110,12 +110,12 @@ export default function Profile() {
       await Alert.fire({
         icon: "success",
         title: "¡Perfil guardado!",
-        text: "Ahora generaremos tu rutina personalizada.",
+        text: "Ahora completá tu historial de salud.",
         timer: 2000,
         showConfirmButton: false,
       });
 
-      navigate("/home");
+      navigate("/dashboard"); // ✅ pasa por RootRedirect → detecta que falta health_history → manda a /health
     } catch (err) {
       console.error(err);
       Alert.fire({ icon: "error", title: "Error al guardar", text: "Intenta de nuevo." });

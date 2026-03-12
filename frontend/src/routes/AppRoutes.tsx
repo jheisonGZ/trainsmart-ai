@@ -13,57 +13,61 @@ import Progress from "../pages/Progress";
 import Login from "../pages/Login";
 import Dashboard from "../pages/Dashboard";
 
-// ── Guard: solo usuarios autenticados ──────────────────────────────────────
-function PrivateRoute({
-  user,
-  loading,
-  children,
-}: {
-  user: User | null;
-  loading: boolean;
-  children: ReactNode;
-}) {
+function PrivateRoute({ user, loading, children }: { user: User | null; loading: boolean; children: ReactNode }) {
   if (loading) return <div className="ts-loading"><span className="ts-spin" /></div>;
   if (!user) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
-// ── Guard: si ya está logueado no vuelve al login ──────────────────────────
-function PublicRoute({
-  user,
-  loading,
-  children,
-}: {
-  user: User | null;
-  loading: boolean;
-  children: ReactNode;
-}) {
+function PublicRoute({ user, loading, children }: { user: User | null; loading: boolean; children: ReactNode }) {
   if (loading) return <div className="ts-loading"><span className="ts-spin" /></div>;
   if (user) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
-// ── Componente que decide: dashboard o perfil ──────────────────────────────
+// ── Flujo: perfil → historial de salud → dashboard ──────────────────────────
 function RootRedirect({ user }: { user: User }) {
-  const [checking, setChecking] = useState(true);
-  const [hasProfile, setHasProfile] = useState(false);
+  const [destination, setDestination] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false; // evita setear estado si el componente se desmontó
+
     const check = async () => {
+      console.log("🔍 RootRedirect uid:", user.uid);
       try {
-        const snap = await getDoc(doc(db, "profiles", user.uid));
-        setHasProfile(snap.exists() && snap.data()?.completed === true);
-      } catch (_e) {
-        setHasProfile(false);
-      } finally {
-        setChecking(false);
+        // 1. ¿Tiene perfil completado?
+        const profileSnap = await getDoc(doc(db, "profiles", user.uid));
+        if (cancelled) return;
+        console.log("📋 profile exists:", profileSnap.exists(), "completed:", profileSnap.data()?.completed);
+
+        const hasProfile = profileSnap.exists() && profileSnap.data()?.completed === true;
+        if (!hasProfile) { setDestination("/profile"); return; }
+
+        // 2. ¿Tiene historial de salud completado?
+        const healthSnap = await getDoc(doc(db, "health_history", user.uid));
+        if (cancelled) return;
+        console.log("🏥 health exists:", healthSnap.exists(), "completed:", healthSnap.data()?.completed);
+
+        const hasHealth = healthSnap.exists() && healthSnap.data()?.completed === true;
+        if (!hasHealth) { setDestination("/health"); return; }
+
+        // 3. Todo completo → dashboard
+        setDestination("/home");
+      } catch (e) {
+        console.error("❌ RootRedirect error:", e);
+        if (!cancelled) setDestination("/profile");
       }
     };
+
     check();
+    return () => { cancelled = true; }; // cleanup al desmontar
   }, [user.uid]);
 
-  if (checking) return <div className="ts-loading"><span className="ts-spin" /></div>;
-  return <Navigate to={hasProfile ? "/home" : "/profile"} replace />;
+  // Mientras consulta Firestore, mostrar spinner
+  if (destination === null) return <div className="ts-loading"><span className="ts-spin" /></div>;
+
+  console.log("➡️ Navegando a:", destination);
+  return <Navigate to={destination} replace />;
 }
 
 export default function AppRoutes() {
@@ -71,7 +75,7 @@ export default function AppRoutes() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+    const unsub = onAuthStateChanged(auth, (u: User | null) => {
       setUser(u);
       setLoading(false);
     });
@@ -81,71 +85,19 @@ export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Público */}
-        <Route
-          path="/"
-          element={
-            <PublicRoute user={user} loading={loading}>
-              <Login />
-            </PublicRoute>
-          }
-        />
-
-        {/* Redirige según si tiene perfil */}
-        <Route
-          path="/dashboard"
-          element={
-            loading ? (
-              <div className="ts-loading"><span className="ts-spin" /></div>
-            ) : user ? (
-              <RootRedirect user={user} />
-            ) : (
-              <Navigate to="/" replace />
-            )
-          }
-        />
-
-        {/* Rutas privadas */}
-        <Route
-          path="/home"
-          element={
-            <PrivateRoute user={user} loading={loading}>
-              <Dashboard />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <PrivateRoute user={user} loading={loading}>
-              <Profile />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/health"
-          element={
-            <PrivateRoute user={user} loading={loading}>
-              <HealthHistory />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/routine"
-          element={
-            <PrivateRoute user={user} loading={loading}>
-              <Routine />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/progress"
-          element={
-            <PrivateRoute user={user} loading={loading}>
-              <Progress />
-            </PrivateRoute>
-          }
-        />
+        <Route path="/" element={<PublicRoute user={user} loading={loading}><Login /></PublicRoute>} />
+        <Route path="/dashboard" element={
+          loading
+            ? <div className="ts-loading"><span className="ts-spin" /></div>
+            : user
+              ? <RootRedirect user={user} />
+              : <Navigate to="/" replace />
+        } />
+        <Route path="/home"     element={<PrivateRoute user={user} loading={loading}><Dashboard /></PrivateRoute>} />
+        <Route path="/profile"  element={<PrivateRoute user={user} loading={loading}><Profile /></PrivateRoute>} />
+        <Route path="/health"   element={<PrivateRoute user={user} loading={loading}><HealthHistory /></PrivateRoute>} />
+        <Route path="/routine"  element={<PrivateRoute user={user} loading={loading}><Routine /></PrivateRoute>} />
+        <Route path="/progress" element={<PrivateRoute user={user} loading={loading}><Progress /></PrivateRoute>} />
       </Routes>
     </BrowserRouter>
   );

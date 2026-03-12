@@ -59,6 +59,7 @@
   font-weight: 800;
   letter-spacing: -0.5px;
   color: var(--text);
+  white-space: nowrap;
 }
 .pf-logo span { color: var(--r); }
 .pf-logo em { font-style: normal; font-size: 0.8em; color: var(--muted); }
@@ -69,6 +70,14 @@
   gap: 12px;
   font-size: 0.82rem;
   color: var(--muted);
+  min-width: 0;
+}
+
+.pf-user span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
 }
 
 .pf-logout {
@@ -80,6 +89,8 @@
   cursor: pointer;
   font-size: 0.78rem;
   transition: all .2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .pf-logout:hover { border-color: var(--r); color: var(--r); }
 
@@ -165,6 +176,7 @@
   padding: 36px 36px 28px;
   box-shadow: 0 8px 40px rgba(0,0,0,0.4);
   animation: fadeUp .35s ease;
+  box-sizing: border-box;
 }
 
 @keyframes fadeUp {
@@ -221,7 +233,6 @@
 .pf-field input:focus,
 .pf-field select:focus { border-color: var(--r); }
 .pf-field input::placeholder { color: rgba(255,255,255,0.2); }
-
 .pf-field select option { background: var(--bg3); }
 
 .pf-hint {
@@ -244,7 +255,7 @@
 
 .pf-opt {
   flex: 1;
-  min-width: 0;
+  min-width: 0;                  /* evita overflow en flex */
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -253,10 +264,13 @@
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
+  gap: 6px;
+  font-size: 0.82rem;
   transition: all .2s;
   text-align: left;
+  overflow: hidden;              /* corta texto que se sale */
+  white-space: nowrap;           /* evita wrap raro */
+  text-overflow: ellipsis;
 }
 .pf-opt:hover { border-color: rgba(255,74,43,0.4); color: var(--text); }
 .pf-opt--on {
@@ -265,13 +279,21 @@
   color: var(--text);
 }
 
+/* El span de texto dentro del opt también debe truncar */
+.pf-opt > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pf-opt--tall {
   flex-direction: column;
   align-items: flex-start;
   padding: 14px;
   gap: 4px;
+  white-space: normal;           /* los tall sí pueden wrappear */
 }
-.pf-opt-icon { font-size: 1.1rem; }
+.pf-opt-icon { font-size: 1.1rem; flex-shrink: 0; }
 .pf-opt-title { font-weight: 600; font-size: 0.85rem; }
 .pf-opt-sub { font-size: 0.72rem; color: var(--muted); }
 
@@ -291,6 +313,7 @@
   font-weight: 900;
   line-height: 1;
   letter-spacing: -1px;
+  flex-shrink: 0;
 }
 .pf-imc-info { display: flex; flex-direction: column; gap: 2px; }
 .pf-imc-label { font-size: 0.72rem; color: var(--muted); }
@@ -328,6 +351,7 @@
 .pf-days {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .pf-day {
   width: 40px; height: 40px;
@@ -339,6 +363,7 @@
   font-weight: 700;
   cursor: pointer;
   transition: all .2s;
+  flex-shrink: 0;
 }
 .pf-day:hover { border-color: rgba(255,74,43,0.4); color: var(--text); }
 .pf-day--on {
@@ -370,6 +395,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 .pf-btn:hover { background: var(--r2); transform: translateY(-1px); }
 .pf-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
@@ -383,9 +409,86 @@
 
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 600px) {
-  .pf-card { padding: 24px 18px 20px; }
-  .pf-grid { grid-template-columns: 1fr; }
-  .pf-field--full { grid-column: 1; }
-  .pf-header { padding: 14px 16px; }
-  .pf-opts--2 { grid-template-columns: 1fr; }
+  .pf-header {
+    padding: 14px 16px;
+    gap: 8px;
+  }
+
+  /* En mobile ocultar el email, solo mostrar botón salir */
+  .pf-user span {
+    display: none;
+  }
+
+  .pf-card {
+    padding: 22px 16px 18px;
+  }
+
+  .pf-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pf-field--full {
+    grid-column: 1;
+  }
+
+  /* Sexo: 3 columnas iguales en mobile */
+  .pf-opts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  /* Cada opt centrado en mobile */
+  .pf-opt {
+    justify-content: center;
+    text-align: center;
+    font-size: 0.78rem;
+    padding: 10px 6px;
+    gap: 4px;
+    white-space: normal;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .pf-opt-icon { font-size: 1rem; }
+
+  .pf-opts--2 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pf-days {
+    gap: 6px;
+  }
+
+  .pf-day {
+    width: 36px;
+    height: 36px;
+    font-size: 0.85rem;
+  }
+
+  .pf-nav {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .pf-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 12px 16px;
+  }
+
+  .pf-title {
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .pf-opts {
+    grid-template-columns: 1fr;
+  }
+
+  .pf-opt {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
 }
