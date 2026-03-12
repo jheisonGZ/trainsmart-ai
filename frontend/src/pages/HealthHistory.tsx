@@ -11,7 +11,7 @@ import {
   ActivitySquare, Flame, Timer, MoveHorizontal,
   StretchHorizontal, HeartPulse, Droplets, Wind,
   TrendingDown, Layers, Ban, Package, Dumbbell,
-  Gauge, PersonStanding,
+  Gauge, PersonStanding, Edit3,
 } from "lucide-react";
 import "./HealthHistory.css";
 
@@ -28,6 +28,7 @@ const sections = [
   {
     key: "injuries",
     icon: <Bone size={24} />,
+    iconSm: <Bone size={18} />,
     label: "Lesiones",
     color: "#ff4a2b",
     description: "¿Has tenido o tenés alguna lesión?",
@@ -46,6 +47,7 @@ const sections = [
   {
     key: "joint_problems",
     icon: <Zap size={24} />,
+    iconSm: <Zap size={18} />,
     label: "Articulaciones",
     color: "#f59e0b",
     description: "¿Tenés problemas articulares?",
@@ -63,6 +65,7 @@ const sections = [
   {
     key: "conditions",
     icon: <Heart size={24} />,
+    iconSm: <Heart size={18} />,
     label: "Condiciones médicas",
     color: "#ec4899",
     description: "¿Tenés alguna condición médica?",
@@ -81,6 +84,7 @@ const sections = [
   {
     key: "limitations",
     icon: <AlertTriangle size={24} />,
+    iconSm: <AlertTriangle size={18} />,
     label: "Limitaciones físicas",
     color: "#8b5cf6",
     description: "¿Qué movimientos o ejercicios debés evitar?",
@@ -105,16 +109,108 @@ const Alert = Swal.mixin({
   customClass: { popup: "swal-ts-popup", title: "swal-ts-title", confirmButton: "swal-ts-btn" },
 });
 
-export default function HealthHistory() {
+/* ── Vista resumen ───────────────────────────────────────── */
+function HealthSummary({ data, onEdit }: { data: HealthData; onEdit: () => void }) {
+  const navigate = useNavigate();
+  const cardRef  = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+    tl.fromTo(cardRef.current, { y: 28, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55 });
+    const items = document.querySelectorAll(".hh-sum-item");
+    if (items.length) tl.fromTo(items,
+      { y: 16, opacity: 0 },
+      { y: 0, opacity: 1, stagger: 0.07, duration: 0.3 }, "-=0.3"
+    );
+  }, []);
+
+  return (
+    <div className="hh">
+      <header className="hh-header">
+        <button className="hh-back" onClick={() => navigate("/home")}>
+          <ArrowLeft size={15} /> <span>Dashboard</span>
+        </button>
+        <div className="hh-logo">Train<span>Smart</span> <em>AI</em></div>
+        <div className="hh-header-badge">
+          <CheckCircle2 size={13} /> <span>Historial completo</span>
+        </div>
+      </header>
+
+      <main className="hh-sum-main">
+        <div className="hh-sum-card" ref={cardRef}>
+
+          {/* Hero */}
+          <div className="hh-sum-hero">
+            <div className="hh-sum-hero-icon">
+              <Shield size={22} />
+            </div>
+            <div className="hh-sum-hero-info">
+              <h2 className="hh-sum-title">Historial de salud</h2>
+              <p className="hh-sum-subtitle">La IA usa esta info para personalizar tu rutina</p>
+            </div>
+            <button className="hh-sum-edit-btn" onClick={onEdit}>
+              <Edit3 size={15} /> <span>Editar</span>
+            </button>
+          </div>
+
+          {/* Secciones */}
+          <div className="hh-sum-sections">
+            {sections.map(s => {
+              const vals = data[s.key as keyof HealthData] as string[];
+              const isEmpty = vals.length === 0;
+              return (
+                <div key={s.key} className="hh-sum-item">
+                  <div className="hh-sum-item-icon" style={{ "--accent": s.color } as React.CSSProperties}>
+                    {s.iconSm}
+                  </div>
+                  <div className="hh-sum-item-body">
+                    <span className="hh-sum-item-label">{s.label}</span>
+                    <div className="hh-sum-item-tags">
+                      {isEmpty
+                        ? <span className="hh-sum-tag hh-sum-tag--empty">Sin registrar</span>
+                        : vals.map(v => (
+                          <span key={v} className="hh-sum-tag" style={{ "--accent": s.color } as React.CSSProperties}>
+                            {v}
+                          </span>
+                        ))
+                      }
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Notas */}
+            {data.notes && (
+              <div className="hh-sum-item">
+                <div className="hh-sum-item-icon" style={{ "--accent": "#22c55e" } as React.CSSProperties}>
+                  <FileText size={18} />
+                </div>
+                <div className="hh-sum-item-body">
+                  <span className="hh-sum-item-label">Observaciones</span>
+                  <p className="hh-sum-notes-text">{data.notes}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/* ── Formulario de pasos ─────────────────────────────────── */
+function HealthForm({ existing, onSaved }: { existing: HealthData | null; onSaved: (d: HealthData) => void }) {
   const navigate = useNavigate();
   const user = auth.currentUser;
+  const isEdit = !!existing;
 
   const [step, setStep]     = useState(0);
   const [saving, setSaving] = useState(false);
-  const [data, setData]     = useState<HealthData>({
-    injuries: [], joint_problems: [], conditions: [], limitations: [],
-    notes: "", completed: false,
-  });
+  const [data, setData]     = useState<HealthData>(
+    existing ?? { injuries: [], joint_problems: [], conditions: [], limitations: [], notes: "", completed: false }
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef      = useRef<HTMLDivElement>(null);
@@ -122,7 +218,6 @@ export default function HealthHistory() {
   const headerRef    = useRef<HTMLElement>(null);
   const stepsRef     = useRef<HTMLDivElement>(null);
 
-  // Animación de entrada
   useEffect(() => {
     const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
     tl.fromTo(headerRef.current, { y: -24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5 })
@@ -130,15 +225,6 @@ export default function HealthHistory() {
       .fromTo(cardRef.current,   { y: 36,  opacity: 0 }, { y: 0, opacity: 1, duration: 0.55 }, "-=0.2");
   }, []);
 
-  // Cargar datos existentes
-  useEffect(() => {
-    if (!user) return;
-    getDoc(doc(db, "health_history", user.uid)).then(snap => {
-      if (snap.exists()) setData(snap.data() as HealthData);
-    });
-  }, [user]);
-
-  // Barra de progreso
   useEffect(() => {
     gsap.to(progressRef.current, {
       width: `${(step / sections.length) * 100}%`,
@@ -146,15 +232,12 @@ export default function HealthHistory() {
     });
   }, [step]);
 
-  // Animar opciones al entrar
   const animateOptions = () => {
     const opts = document.querySelectorAll(".hh-option");
-    if (opts.length > 0) {
-      gsap.fromTo(opts,
-        { y: 14, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.28, stagger: 0.035, ease: "power2.out" }
-      );
-    }
+    if (opts.length > 0) gsap.fromTo(opts,
+      { y: 14, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.28, stagger: 0.035, ease: "power2.out" }
+    );
   };
 
   const toggleOption = (key: keyof HealthData, val: string) => {
@@ -180,30 +263,23 @@ export default function HealthHistory() {
   };
 
   const next = () => {
-    if (step < sections.length) {
-      // Validar que seleccionó al menos una opción en el paso actual
-      const key = sections[step]?.key as keyof HealthData;
-      const selected = data[key] as string[];
-      if (!selected || selected.length === 0) {
-        Alert.fire({
-          icon: "warning",
-          title: "Seleccioná al menos una opción",
-          text: `Indicá tu situación en "${sections[step].label}" para continuar.`,
-          confirmButtonText: "Entendido",
-        });
-        return;
-      }
-      animateStep("next", () => setStep(s => s + 1));
+    const key = sections[step]?.key as keyof HealthData;
+    const selected = data[key] as string[];
+    if (!selected || selected.length === 0) {
+      Alert.fire({ icon: "warning", title: "Seleccioná al menos una opción",
+        text: `Indicá tu situación en "${sections[step].label}" para continuar.`,
+        confirmButtonText: "Entendido" });
+      return;
     }
+    if (step < sections.length) animateStep("next", () => setStep(s => s + 1));
   };
   const prev = () => { if (step > 0) animateStep("prev", () => setStep(s => s - 1)); };
 
   const handleSave = async () => {
     if (!user) return;
-
     const confirm = await Alert.fire({
       icon: "question",
-      title: "¿Guardar historial?",
+      title: isEdit ? "¿Guardar cambios?" : "¿Guardar historial?",
       text: "La IA usará esta información para personalizar tu rutina.",
       showCancelButton: true,
       confirmButtonText: "Sí, guardar",
@@ -215,25 +291,19 @@ export default function HealthHistory() {
     Alert.fire({ title: "Guardando...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-      await setDoc(doc(db, "health_history", user.uid), {
-        ...data, completed: true, updated_at: new Date().toISOString(),
-      });
+      const saved = { ...data, completed: true, updated_at: new Date().toISOString() };
+      await setDoc(doc(db, "health_history", user.uid), saved);
       await Alert.fire({
         icon: "success",
-        title: "¡Historial guardado!",
-        text: "Tu rutina será personalizada según tu historial de salud.",
-        confirmButtonText: "Ir al dashboard",
-        timer: 3500,
-        timerProgressBar: true,
+        title: isEdit ? "¡Historial actualizado!" : "¡Historial guardado!",
+        text: isEdit ? "Tus cambios fueron guardados." : "Tu rutina será personalizada según tu historial.",
+        timer: 2200,
+        showConfirmButton: false,
       });
-      navigate("/dashboard");
+      if (isEdit) onSaved(saved);
+      else navigate("/home");
     } catch {
-      Alert.fire({
-        icon: "error",
-        title: "Error al guardar",
-        text: "Verificá tu conexión e intentá de nuevo.",
-        confirmButtonText: "Reintentar",
-      });
+      Alert.fire({ icon: "error", title: "Error al guardar", text: "Verificá tu conexión e intentá de nuevo." });
     } finally {
       setSaving(false);
     }
@@ -245,11 +315,9 @@ export default function HealthHistory() {
 
   return (
     <div className="hh" ref={containerRef}>
-
-      {/* Header */}
       <header className="hh-header" ref={headerRef}>
-        <button className="hh-back" onClick={() => navigate("/home")}>
-          <ArrowLeft size={15} /> <span>Dashboard</span>
+        <button className="hh-back" onClick={() => isEdit ? onSaved(data) : navigate("/home")}>
+          <ArrowLeft size={15} /> <span>{isEdit ? "Cancelar" : "Dashboard"}</span>
         </button>
         <div className="hh-logo">Train<span>Smart</span> <em>AI</em></div>
         <div className="hh-header-badge">
@@ -257,53 +325,29 @@ export default function HealthHistory() {
         </div>
       </header>
 
-      {/* Progreso */}
       <div className="hh-progress-wrap" ref={stepsRef}>
         <div className="hh-progress-track">
           <div className="hh-progress-bar" ref={progressRef} />
         </div>
         <div className="hh-steps-labels">
           {sections.map((s, i) => (
-            <button
-              key={s.key}
+            <button key={s.key}
               className={`hh-step-dot${i === step ? " hh-step-dot--on" : ""}${i < step ? " hh-step-dot--done" : ""}`}
-              onClick={() => {
-                if (i > step) {
-                  // Verificar que todos los pasos anteriores estén completos
-                  for (let s = step; s < i; s++) {
-                    const key = sections[s]?.key as keyof HealthData;
-                    const selected = data[key] as string[];
-                    if (!selected || selected.length === 0) {
-                      Alert.fire({
-                        icon: "warning",
-                        title: "Completá los pasos anteriores",
-                        text: `Primero indicá tu situación en "${sections[s].label}".`,
-                        confirmButtonText: "Entendido",
-                      });
-                      return;
-                    }
-                  }
-                }
-                animateStep(i > step ? "next" : "prev", () => setStep(i));
-              }}
+              onClick={() => animateStep(i > step ? "next" : "prev", () => setStep(i))}
             >
               {i < step ? <CheckCircle2 size={13} /> : s.icon}
               <span>{s.label}</span>
             </button>
           ))}
-          <button
-            className={`hh-step-dot${isLastStep ? " hh-step-dot--on" : ""}`}
-            onClick={() => animateStep("next", () => setStep(sections.length))}
-          >
+          <button className={`hh-step-dot${isLastStep ? " hh-step-dot--on" : ""}`}
+            onClick={() => animateStep("next", () => setStep(sections.length))}>
             <FileText size={13} /> <span>Notas</span>
           </button>
         </div>
       </div>
 
-      {/* Card */}
       <main className="hh-main">
         <div className="hh-card" ref={cardRef}>
-
           {!isLastStep ? (
             <>
               <div className="hh-card-icon" style={{ "--accent": currentSection.color } as React.CSSProperties}>
@@ -314,13 +358,11 @@ export default function HealthHistory() {
                 <p className="hh-card-desc">{currentSection.description}</p>
                 <p className="hh-card-hint"><Circle size={8} /> Podés seleccionar varias opciones</p>
               </div>
-
               <div className="hh-options">
                 {currentSection.options.map(opt => {
                   const selected = (data[currentKey] as string[]).includes(opt.label);
                   return (
-                    <button
-                      key={opt.label}
+                    <button key={opt.label}
                       className={`hh-option${selected ? " hh-option--on" : ""}`}
                       style={{ "--accent": currentSection.color } as React.CSSProperties}
                       onClick={() => toggleOption(currentKey, opt.label)}
@@ -345,15 +387,12 @@ export default function HealthHistory() {
                 <p className="hh-card-desc">¿Hay algo más que la IA deba saber sobre tu salud?</p>
                 <p className="hh-card-hint"><Circle size={8} /> Este campo es opcional</p>
               </div>
-
-              <textarea
-                className="hh-notes"
+              <textarea className="hh-notes"
                 placeholder="Ej: Tuve una operación de rodilla hace 2 años, puedo hacer ejercicio pero sin impacto fuerte..."
                 value={data.notes}
                 onChange={e => setData(prev => ({ ...prev, notes: e.target.value }))}
                 rows={4}
               />
-
               <div className="hh-summary">
                 <p className="hh-summary-title"><Shield size={13} /> Resumen de tu historial</p>
                 {sections.map(s => {
@@ -363,9 +402,7 @@ export default function HealthHistory() {
                       <span className="hh-summary-icon" style={{ color: s.color }}>{s.icon}</span>
                       <div className="hh-summary-body">
                         <span className="hh-summary-label">{s.label}</span>
-                        <span className="hh-summary-val">
-                          {vals.length === 0 ? "Sin seleccionar" : vals.join(", ")}
-                        </span>
+                        <span className="hh-summary-val">{vals.length === 0 ? "Sin seleccionar" : vals.join(", ")}</span>
                       </div>
                     </div>
                   );
@@ -374,7 +411,6 @@ export default function HealthHistory() {
             </>
           )}
 
-          {/* Navegación */}
           <div className="hh-nav">
             {step > 0
               ? <button className="hh-btn-prev" onClick={prev}><ChevronLeft size={16} /> Anterior</button>
@@ -383,16 +419,35 @@ export default function HealthHistory() {
             {!isLastStep
               ? <button className="hh-btn-next" onClick={next}>Siguiente <ChevronRight size={16} /></button>
               : <button className="hh-btn-save" onClick={handleSave} disabled={saving}>
-                  {saving
-                    ? <><span className="hh-spin" /> Guardando...</>
-                    : <><CheckCircle2 size={16} /> Guardar historial</>
-                  }
+                  {saving ? <><span className="hh-spin" /> Guardando...</> : <><CheckCircle2 size={16} /> {isEdit ? "Guardar cambios" : "Guardar historial"}</>}
                 </button>
             }
           </div>
-
         </div>
       </main>
     </div>
   );
+}
+
+/* ── Componente principal ────────────────────────────────── */
+export default function HealthHistory() {
+  const user = auth.currentUser;
+  const [healthData, setHealthData] = useState<HealthData | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [editing, setEditing]       = useState(false);
+
+  useEffect(() => {
+    if (!user) { setLoading(false); return; }
+    getDoc(doc(db, "health_history", user.uid)).then(snap => {
+      if (snap.exists() && snap.data()?.completed) {
+        setHealthData(snap.data() as HealthData);
+      }
+    }).finally(() => setLoading(false));
+  }, [user]);
+
+  if (loading) return <div className="ts-loading"><span className="ts-spin" /></div>;
+
+  if (!healthData) return <HealthForm existing={null} onSaved={d => { setHealthData(d); setEditing(false); }} />;
+  if (editing)     return <HealthForm existing={healthData} onSaved={d => { setHealthData(d); setEditing(false); }} />;
+  return <HealthSummary data={healthData} onEdit={() => setEditing(true)} />;
 }
