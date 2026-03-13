@@ -156,6 +156,7 @@ function ProfileForm({ existing, onSaved, onCancel }: { existing: ProfileData | 
   const navigate  = useNavigate();
   const user      = auth.currentUser;
   const isEdit    = !!existing;
+  const sexSelectRef = useRef<HTMLDivElement>(null);
 
   useBlockNavigation(); // ← dentro del componente ✅
 
@@ -167,10 +168,19 @@ function ProfileForm({ existing, onSaved, onCancel }: { existing: ProfileData | 
   const [sex, setSex]               = useState(existing?.sex ?? "");
   const [weight, setWeight]         = useState(existing?.weight_kg ? String(existing.weight_kg) : "");
   const [height, setHeight]         = useState(existing?.height_cm ? String(existing.height_cm) : "");
+  const [sexOpen, setSexOpen]       = useState(false);
   const [experience, setExperience] = useState(existing?.experience_level ?? "");
   const [goal, setGoal]             = useState(existing?.goal ?? "");
   const [daysPerWeek, setDaysPerWeek]       = useState(existing?.days_per_week ? String(existing.days_per_week) : "");
   const [timePerSession, setTimePerSession] = useState(existing?.time_per_session ?? "");
+
+  const sexOptions: Array<{ value: string; label: string; icon: string }> = [
+    { value: "male", label: "Masculino", icon: "♂" },
+    { value: "female", label: "Femenino", icon: "♀" },
+    { value: "other", label: "Otro", icon: "⚧" },
+  ];
+
+  const currentSex = sexOptions.find(s => s.value === sex);
 
   const imc    = weight && height ? calcIMC(Number(weight), Number(height)) : null;
   const imcCat = imc ? imcCategory(imc) : null;
@@ -199,6 +209,18 @@ function ProfileForm({ existing, onSaved, onCancel }: { existing: ProfileData | 
 
   const next = () => { if (validateStep()) setStep(s => s + 1); };
   const back = () => setStep(s => s - 1);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!sexSelectRef.current) return;
+      if (!sexSelectRef.current.contains(event.target as Node)) {
+        setSexOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   const handleSave = async () => {
     if (!validateStep() || !user) return;
@@ -270,7 +292,7 @@ function ProfileForm({ existing, onSaved, onCancel }: { existing: ProfileData | 
 
         <div className="pf-card">
           {step === 0 && (
-            <div className="pf-section">
+            <div className="pf-section pf-section--personal">
               <h2 className="pf-title">Datos personales</h2>
               <p className="pf-sub">Necesitamos conocerte para personalizar tu experiencia.</p>
               <div className="pf-grid">
@@ -278,28 +300,56 @@ function ProfileForm({ existing, onSaved, onCancel }: { existing: ProfileData | 
                   <label>Nombre completo</label>
                   <input type="text" placeholder="Juan García" value={name} onChange={e => setName(e.target.value)} />
                 </div>
-                <div className="pf-field">
+                <div className="pf-field pf-field--date">
                   <label>Fecha de nacimiento</label>
                   <input type="date" value={birthdate} onChange={e => setBirthdate(e.target.value)}
                     max={new Date(Date.now() - 16 * 365.25 * 24 * 3600 * 1000).toISOString().split("T")[0]} />
-                  {age !== null && <span className="pf-hint">{age} años</span>}
+                  <span className="pf-hint pf-hint--age">{age !== null ? `${age} años` : ""}</span>
                 </div>
-                <div className="pf-field">
+                <div className="pf-field pf-field--sex">
                   <label>Sexo</label>
-                  <div className="pf-opts">
-                    {[["male","Masculino","♂"],["female","Femenino","♀"],["other","Otro","⚧"]].map(([v,l,icon]) => (
-                      <button key={v} type="button" className={`pf-opt${sex===v?" pf-opt--on":""}`} onClick={() => setSex(v)}>
-                        <span className="pf-opt-icon">{icon}</span><span>{l}</span>
-                      </button>
-                    ))}
+                  <div className="pf-sex-select" ref={sexSelectRef}>
+                    <button
+                      type="button"
+                      className={`pf-sex-trigger${sexOpen ? " pf-sex-trigger--open" : ""}${sex ? " pf-sex-trigger--selected" : ""}`}
+                      onClick={() => setSexOpen(v => !v)}
+                      aria-expanded={sexOpen}
+                      aria-haspopup="listbox"
+                    >
+                      <span className="pf-sex-current">
+                        <span className="pf-sex-current-icon">{currentSex?.icon ?? "◦"}</span>
+                        <span className="pf-sex-current-label">{currentSex?.label ?? "Seleccionar"}</span>
+                      </span>
+                      <span className={`pf-sex-caret${sexOpen ? " pf-sex-caret--open" : ""}`}>▾</span>
+                    </button>
+
+                    {sexOpen && (
+                      <div className="pf-sex-menu" role="listbox" aria-label="Seleccionar sexo">
+                        {sexOptions.map(opt => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            className={`pf-sex-item${sex === opt.value ? " pf-sex-item--on" : ""}`}
+                            onClick={() => {
+                              setSex(opt.value);
+                              setSexOpen(false);
+                            }}
+                          >
+                            <span className="pf-sex-item-icon">{opt.icon}</span>
+                            <span className="pf-sex-item-label">{opt.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
+                  <span className="pf-hint pf-hint--slot" aria-hidden="true">&nbsp;</span>
                 </div>
               </div>
             </div>
           )}
 
           {step === 1 && (
-            <div className="pf-section">
+            <div className="pf-section pf-section--physical">
               <h2 className="pf-title">Condición física</h2>
               <p className="pf-sub">Esta información calcula tu IMC y adapta la intensidad de tu rutina.</p>
               <div className="pf-grid">
@@ -345,7 +395,7 @@ function ProfileForm({ existing, onSaved, onCancel }: { existing: ProfileData | 
           )}
 
           {step === 2 && (
-            <div className="pf-section">
+            <div className="pf-section pf-section--goals">
               <h2 className="pf-title">Tus objetivos</h2>
               <p className="pf-sub">La IA usará esto para generar una rutina personalizada y segura.</p>
               <div className="pf-grid">

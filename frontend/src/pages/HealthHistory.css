@@ -22,7 +22,7 @@
 .hh-back {
   display: flex; align-items: center; gap: 6px;
   background: transparent; border: 1px solid var(--border);
-  color: var(--muted); padding: 7px 14px; border-radius: 8px;
+  color: rgba(255,255,255,0.62); padding: 7px 14px; border-radius: 8px;
   cursor: pointer; font-size: 0.8rem; transition: all .2s;
 }
 .hh-back:hover { border-color: var(--r); color: var(--r); }
@@ -52,7 +52,7 @@
 .hh-step-dot {
   display: flex; align-items: center; gap: 6px;
   background: transparent; border: 1px solid var(--border);
-  color: var(--muted); padding: 6px 12px; border-radius: 20px;
+  color: rgba(255,255,255,0.58); padding: 6px 12px; border-radius: 20px;
   cursor: pointer; font-size: 0.75rem; transition: all .2s;
 }
 .hh-step-dot:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
@@ -69,6 +69,7 @@
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: 20px; padding: 36px 32px;
   display: flex; flex-direction: column; gap: 20px;
+  box-shadow: 0 8px 36px rgba(0,0,0,0.36);
 }
 
 /* Icono de sección */
@@ -80,8 +81,8 @@
   display: flex; align-items: center; justify-content: center;
 }
 .hh-card-title { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; }
-.hh-card-desc  { font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
-.hh-card-hint  { font-size: 0.75rem; color: rgba(255,255,255,0.25); }
+.hh-card-desc  { font-size: 0.9rem; color: rgba(255,255,255,0.62); line-height: 1.5; }
+.hh-card-hint  { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
 
 /* ── Opciones (cards seleccionables) ─────────────────────── */
 .hh-options {
@@ -90,18 +91,34 @@
 .hh-option {
   display: flex; align-items: center; gap: 10px;
   background: var(--bg3); border: 1px solid var(--border);
-  color: var(--muted); padding: 12px 14px; border-radius: 10px;
-  cursor: pointer; font-size: 0.82rem; text-align: left;
+  color: rgba(255,255,255,0.72); padding: 12px 14px; border-radius: 10px;
+  cursor: pointer; font-size: 0.84rem; text-align: left;
+  font-weight: 600;
   transition: all .18s; width: 100%;
 }
-.hh-option:hover { border-color: rgba(255,255,255,0.15); color: var(--text); }
-.hh-option--on {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+.hh-option:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, rgba(255,255,255,0.1));
   color: var(--text);
 }
+.hh-option--on {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
 .hh-option--on .hh-option-check { color: var(--accent); }
-.hh-option-check { display: flex; align-items: center; flex-shrink: 0; color: var(--muted); }
+.hh-option-icon {
+  color: color-mix(in srgb, var(--accent) 72%, rgba(255,255,255,0.45));
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.hh-option-label {
+  color: inherit;
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+.hh-option-check { display: flex; align-items: center; flex-shrink: 0; color: rgba(255,255,255,0.5); }
 
 /* ── Notas ───────────────────────────────────────────────── */
 .hh-notes {
@@ -110,8 +127,12 @@
   font-size: 0.85rem; resize: vertical; font-family: inherit;
   transition: border-color .2s; line-height: 1.6;
 }
-.hh-notes:focus { outline: none; border-color: rgba(255,74,43,0.4); }
-.hh-notes::placeholder { color: rgba(255,255,255,0.2); }
+.hh-notes:focus {
+  outline: none;
+  border-color: rgba(255,74,43,0.55);
+  box-shadow: 0 0 0 3px rgba(255,74,43,0.08);
+}
+.hh-notes::placeholder { color: rgba(255,255,255,0.34); }
 
 /* ── Resumen ─────────────────────────────────────────────── */
 .hh-summary {
@@ -123,10 +144,19 @@
 }
 .hh-summary-icon { display: flex; align-items: center; margin-top: 1px; flex-shrink: 0; }
 .hh-summary-label {
-  display: block; font-size: 0.68rem; color: var(--muted);
+  display: block; font-size: 0.68rem; color: rgba(255,255,255,0.56);
   text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px;
 }
 .hh-summary-val { font-size: 0.8rem; color: var(--text); line-height: 1.4; }
+
+.hh-summary-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.72);
+  font-weight: 700;
+}
 
 /* ── Navegación ──────────────────────────────────────────── */
 .hh-nav {
@@ -135,7 +165,7 @@
 .hh-btn-prev {
   display: flex; align-items: center; gap: 6px;
   background: transparent; border: 1px solid var(--border);
-  color: var(--muted); padding: 10px 18px; border-radius: 9px;
+  color: rgba(255,255,255,0.62); padding: 10px 18px; border-radius: 9px;
   cursor: pointer; font-size: 0.85rem; transition: all .2s;
 }
 .hh-btn-prev:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
@@ -218,7 +248,7 @@
 }
 .hh-sum-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .hh-sum-item-label {
-  font-size: 0.67rem; color: var(--muted);
+  font-size: 0.67rem; color: rgba(255,255,255,0.56);
   text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600;
 }
 .hh-sum-item-tags { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -230,7 +260,7 @@
 }
 .hh-sum-tag--empty {
   background: transparent; border-color: var(--border);
-  color: var(--muted); font-style: italic;
+  color: rgba(255,255,255,0.58); font-style: italic;
 }
 .hh-sum-notes-text {
   font-size: 0.82rem; color: var(--text); line-height: 1.6;
