@@ -24,6 +24,8 @@ html, body {
 
 body {
   min-width: 320px;
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
 }
 
 #root {

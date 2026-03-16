@@ -4,7 +4,6 @@ import { auth, db } from "../firebase";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { gsap } from "gsap";
 import Swal from "sweetalert2";
-import { useBlockNavigation } from "../hooks/useBlockNavigation";
 import {
   User, Calendar, Weight, Ruler, Target, Clock,
   Dumbbell, Edit3, ArrowLeft, CheckCircle2,
@@ -66,7 +65,6 @@ function ProfileSummary({ profile, onEdit }: { profile: ProfileData; onEdit: () 
   const imcCat   = imcCategory(profile.imc);
   const firstName = profile.name?.split(" ")[0] ?? "Usuario";
 
-  useBlockNavigation(); // ← dentro del componente ✅
 
   useEffect(() => {
     const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
@@ -157,7 +155,6 @@ function ProfileForm({ existing, onSaved, onCancel }: { existing: ProfileData | 
   const user      = auth.currentUser;
   const isEdit    = !!existing;
 
-  useBlockNavigation(); // ← dentro del componente ✅
 
   const [step, setStep]     = useState(0);
   const [saving, setSaving] = useState(false);

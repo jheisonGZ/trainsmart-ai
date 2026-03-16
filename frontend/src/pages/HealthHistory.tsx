@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useBlockNavigation } from "../hooks/useBlockNavigation";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebase";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -115,10 +114,9 @@ function HealthSummary({ data, onEdit }: { data: HealthData; onEdit: () => void 
   const navigate = useNavigate();
   const cardRef  = useRef<HTMLDivElement>(null);
 
-  // ✔ Hook llamado correctamente
-  useBlockNavigation();
-
   useEffect(() => {
+  // Bloquear botón atrás y adelante del navegador
+
     const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
     tl.fromTo(cardRef.current, { y: 28, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55 });
     const items = document.querySelectorAll(".hh-sum-item");
@@ -223,7 +221,6 @@ function HealthForm({ existing, onSaved, onCancel }: { existing: HealthData | nu
   const stepsRef     = useRef<HTMLDivElement>(null);
 
   // Bloquear botón atrás y adelante del navegador
-  useBlockNavigation();
 
   useEffect(() => {
     const tl = gsap.timeline({ defaults: { ease: "power3.out" } });

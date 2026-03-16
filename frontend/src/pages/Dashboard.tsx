@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from "react";
-import { useBlockNavigation } from "../hooks/useBlockNavigation";
 import { useNavigate, useLocation } from "react-router-dom";
 import { auth, db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -41,7 +40,6 @@ export default function Dashboard() {
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // Bloquear botón atrás y adelante del navegador
-  useBlockNavigation();
 
   useEffect(() => {
     if (!user) return;
