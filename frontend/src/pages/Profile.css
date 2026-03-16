@@ -140,7 +140,7 @@
   content: '';
   position: absolute;
   inset: -30px; /* extra para evitar bordes blancos del blur */
- background: url("../images/login.webp") center / cover no-repeat;
+ background: url("/images/login.webp") center / cover no-repeat;
   filter: blur(22px) brightness(0.18) saturate(0.7);
   z-index: 0;
 }

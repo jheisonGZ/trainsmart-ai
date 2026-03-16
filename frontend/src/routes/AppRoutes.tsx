@@ -1,122 +1,170 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import type { User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../firebase";
+import { useEffect, useState, type ReactNode } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
-import Profile from "../pages/Profile";
-import HealthHistory from "../pages/HealthHistory";
-import Routine from "../pages/Routine";
-import Progress from "../pages/Progress";
-import Login from "../pages/Login";
+import AppShell from "../components/AppShell";
+import RequestStateCard from "../components/RequestStateCard";
+import { useAuth } from "../context/AuthContext";
+import AuthCallback from "../pages/AuthCallback";
 import Dashboard from "../pages/Dashboard";
+import HealthHistory from "../pages/HealthHistory";
+import Login from "../pages/Login";
+import Profile from "../pages/Profile";
+import Progress from "../pages/Progress";
+import Routine from "../pages/Routine";
+import { ApiClientError, api } from "../lib/api";
+import type { AuthMeResponse } from "../types/api";
 
-
-// ── Hook para bloquear botón atrás del navegador ─────────────────────────────
-function useBlockBack() {
-  useEffect(() => {
-    // Empuja una entrada extra al historial para "absorber" el botón atrás
-    window.history.pushState(null, "", window.location.href);
-    const handlePop = () => {
-      window.history.pushState(null, "", window.location.href);
-    };
-    window.addEventListener("popstate", handlePop);
-    return () => window.removeEventListener("popstate", handlePop);
-  }, []);
+function LoadingScreen() {
+  return (
+    <div className="ts-loading">
+      <span className="ts-spin" />
+    </div>
+  );
 }
 
-function PrivateRoute({ user, loading, children }: { user: User | null; loading: boolean; children: ReactNode }) {
-  if (loading) return <div className="ts-loading"><span className="ts-spin" /></div>;
-  if (!user) return <Navigate to="/" replace />;
+function PrivateRoute({ children }: { children: ReactNode }) {
+  const { supabaseUser, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!supabaseUser) {
+    return <Navigate to="/" replace />;
+  }
+
   return <>{children}</>;
 }
 
-function PublicRoute({ user, loading, children }: { user: User | null; loading: boolean; children: ReactNode }) {
-  if (loading) return <div className="ts-loading"><span className="ts-spin" /></div>;
-  if (user) return <Navigate to="/dashboard" replace />;
+function PublicRoute({ children }: { children: ReactNode }) {
+  const { supabaseUser, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (supabaseUser) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return <>{children}</>;
 }
 
-// ── Flujo: perfil → historial de salud → dashboard ──────────────────────────
-function RootRedirect({ user }: { user: User }) {
+function RootRedirect() {
+  const { signOut } = useAuth();
   const [destination, setDestination] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    let cancelled = false; // evita setear estado si el componente se desmontó
+    let active = true;
 
-    const check = async () => {
-      console.log("🔍 RootRedirect uid:", user.uid);
+    async function resolveDestination() {
+      setErrorMessage(null);
+
       try {
-        // 1. ¿Tiene perfil completado?
-        const profileSnap = await getDoc(doc(db, "profiles", user.uid));
-        if (cancelled) return;
-        console.log("📋 profile exists:", profileSnap.exists(), "completed:", profileSnap.data()?.completed);
+        const authMe = await api.get<AuthMeResponse>("/auth/me");
 
-        const hasProfile = profileSnap.exists() && profileSnap.data()?.completed === true;
-        if (!hasProfile) { setDestination("/profile"); return; }
+        if (!active) {
+          return;
+        }
 
-        // 2. ¿Tiene historial de salud completado?
-        const healthSnap = await getDoc(doc(db, "health_history", user.uid));
-        if (cancelled) return;
-        console.log("🏥 health exists:", healthSnap.exists(), "completed:", healthSnap.data()?.completed);
+        if (!authMe.profile_completed) {
+          setDestination("/profile");
+          return;
+        }
 
-        const hasHealth = healthSnap.exists() && healthSnap.data()?.completed === true;
-        if (!hasHealth) { setDestination("/health"); return; }
+        if (!authMe.health_completed) {
+          setDestination("/health");
+          return;
+        }
 
-        // 3. Todo completo → dashboard
         setDestination("/home");
-      } catch (e) {
-        console.error("❌ RootRedirect error:", e);
-        if (!cancelled) setDestination("/profile");
+      } catch (error) {
+        console.error("Failed to resolve root redirect", error);
+
+        if (!active) {
+          return;
+        }
+
+        if (error instanceof ApiClientError && error.status === 401) {
+          await signOut().catch((signOutError) => {
+            console.error("Failed to clear expired session", signOutError);
+          });
+          setDestination("/");
+          return;
+        }
+
+        setErrorMessage(
+          error instanceof ApiClientError && error.status === 429
+            ? "La API alcanz\u00f3 temporalmente su l\u00edmite de peticiones. Reintenta en unos segundos."
+            : "No pudimos validar tu sesi\u00f3n ni tu progreso inicial. Reintenta sin perder tu flujo actual.",
+        );
       }
+    }
+
+    void resolveDestination();
+
+    return () => {
+      active = false;
     };
+  }, [reloadKey, signOut]);
 
-    check();
-    return () => { cancelled = true; }; // cleanup al desmontar
-  }, [user.uid]);
+  if (!destination) {
+    if (errorMessage) {
+      return (
+        <RequestStateCard
+          title="No pudimos continuar tu sesi\u00f3n"
+          description={errorMessage}
+          primaryActionLabel="Reintentar"
+          onPrimaryAction={() => setReloadKey((current) => current + 1)}
+          secondaryActionLabel="Volver al inicio"
+          onSecondaryAction={() => void signOut().then(() => setDestination("/"))}
+        />
+      );
+    }
 
-  // Mientras consulta Firestore, mostrar spinner
-  if (destination === null) return <div className="ts-loading"><span className="ts-spin" /></div>;
+    return <LoadingScreen />;
+  }
 
-  console.log("➡️ Navegando a:", destination);
   return <Navigate to={destination} replace />;
 }
 
-function BlockedRoute({ children }: { children: ReactNode }) {
-  useBlockBack();
-  return <>{children}</>;
-}
-
 export default function AppRoutes() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u: User | null) => {
-      setUser(u);
-      setLoading(false);
-    });
-    return unsub;
-  }, []);
-
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<PublicRoute user={user} loading={loading}><Login /></PublicRoute>} />
-        <Route path="/dashboard" element={
-          loading
-            ? <div className="ts-loading"><span className="ts-spin" /></div>
-            : user
-              ? <RootRedirect user={user} />
-              : <Navigate to="/" replace />
-        } />
-        <Route path="/home"     element={<PrivateRoute user={user} loading={loading}><BlockedRoute><Dashboard /></BlockedRoute></PrivateRoute>} />
-        <Route path="/profile"  element={<PrivateRoute user={user} loading={loading}><BlockedRoute><Profile /></BlockedRoute></PrivateRoute>} />
-        <Route path="/health"   element={<PrivateRoute user={user} loading={loading}><BlockedRoute><HealthHistory /></BlockedRoute></PrivateRoute>} />
-        <Route path="/routine"  element={<PrivateRoute user={user} loading={loading}><Routine /></PrivateRoute>} />
-        <Route path="/progress" element={<PrivateRoute user={user} loading={loading}><Progress /></PrivateRoute>} />
+        <Route
+          path="/"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route
+          path="/dashboard"
+          element={
+            <PrivateRoute>
+              <RootRedirect />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          element={
+            <PrivateRoute>
+              <AppShell />
+            </PrivateRoute>
+          }
+        >
+          <Route path="/home" element={<Dashboard />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/health" element={<HealthHistory />} />
+          <Route path="/routine" element={<Routine />} />
+          <Route path="/progress" element={<Progress />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

@@ -4,66 +4,32 @@
   --bg: #080808;
   --bg2: #101010;
   --bg3: #181818;
-  --border: rgba(255,255,255,0.08);
+  --border: rgba(255, 255, 255, 0.08);
   --text: #f0f0f0;
-  --muted: rgba(255,255,255,0.58);
+  --muted: rgba(255, 255, 255, 0.58);
 }
 
 .rt {
-  min-height: 100vh;
-  background: var(--bg);
+  min-height: 100%;
   color: var(--text);
-  font-family: "Segoe UI", system-ui, sans-serif;
 }
 
-.rt-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 28px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(10,10,10,0.84);
-  backdrop-filter: blur(10px);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+.rt-main {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 20px 56px;
 }
 
-.rt-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: rgba(255,255,255,0.62);
-  border-radius: 8px;
-  padding: 7px 12px;
-  cursor: pointer;
+.rt-hero h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  letter-spacing: -0.04em;
 }
 
-.rt-back:hover { border-color: var(--r); color: var(--r); }
-
-.rt-logo { font-size: 1.1rem; font-weight: 800; }
-.rt-logo span { color: var(--r); }
-.rt-logo em { font-style: normal; color: rgba(255,255,255,0.4); font-size: 0.72em; }
-
-.rt-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--r);
-  background: rgba(255,74,43,0.12);
-  border: 1px solid rgba(255,74,43,0.24);
-  border-radius: 20px;
-  padding: 6px 10px;
-  font-size: 0.74rem;
-  font-weight: 700;
+.rt-hero p {
+  margin: 8px 0 0;
+  color: var(--muted);
 }
-
-.rt-main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 44px; }
-
-.rt-hero h1 { font-size: 1.8rem; letter-spacing: -0.5px; }
-.rt-hero p { margin-top: 6px; color: var(--muted); }
 
 .rt-grid {
   margin-top: 18px;
@@ -72,40 +38,285 @@
   gap: 12px;
 }
 
+.rt-grid--single {
+  grid-template-columns: 1fr;
+}
+
 .rt-card {
   background: var(--bg2);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 18px;
 }
 
 .rt-card h2 {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: 0.95rem;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 0.96rem;
 }
 
 .rt-card p,
 .rt-card li {
-  color: rgba(255,255,255,0.66);
-  font-size: 0.86rem;
-  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
 }
 
-.rt-card ul { padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.rt-card ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
 
-.rt-days { display: flex; flex-wrap: wrap; gap: 8px; }
-.rt-days span {
-  min-width: 42px;
-  text-align: center;
+.rt-list-spaced,
+.rt-plan-list,
+.rt-blocks,
+.rt-exercise-list {
+  display: grid;
+  gap: 12px;
+}
+
+.rt-plan-list {
+  margin-top: 16px;
+}
+
+.rt-plan-day,
+.rt-day-preview,
+.rt-block-card,
+.rt-exercise-card {
+  border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--bg3);
-  border-radius: 8px;
+}
+
+.rt-plan-day {
+  padding: 14px;
+}
+
+.rt-plan-day p,
+.rt-plan-day ul {
+  margin-top: 8px;
+}
+
+.rt-day-overview {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.rt-day-label {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.rt-day-copy {
+  margin: 6px 0 0;
+}
+
+.rt-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.rt-day-button {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 2px;
+  min-width: 110px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rt-day-button span {
+  font-weight: 700;
+}
+
+.rt-day-button small {
+  color: var(--muted);
+}
+
+.rt-day-button:hover,
+.rt-day-button--preview {
+  border-color: rgba(255, 74, 43, 0.28);
+  background: rgba(255, 74, 43, 0.08);
+}
+
+.rt-day-button--today {
+  border-color: rgba(255, 74, 43, 0.45);
+}
+
+.rt-day-preview {
+  margin-top: 14px;
+  padding: 16px;
+}
+
+.rt-day-preview__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rt-day-preview__head p,
+.rt-day-preview__focus {
+  margin: 6px 0 0;
+}
+
+.rt-day-preview__meta,
+.rt-day-preview__tags {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.rt-day-preview__meta span,
+.rt-day-preview__tags span {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
   padding: 7px 10px;
   font-size: 0.82rem;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.rt-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.rt-pill--active {
+  color: #ff8d75;
+  background: rgba(255, 74, 43, 0.12);
+  border-color: rgba(255, 74, 43, 0.24);
+}
+
+.rt-pill--available {
+  color: #6ee7b7;
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.24);
+}
+
+.rt-pill--completed {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.12);
+  border-color: rgba(96, 165, 250, 0.24);
+}
+
+.rt-pill--next {
+  color: #facc15;
+  background: rgba(250, 204, 21, 0.12);
+  border-color: rgba(250, 204, 21, 0.24);
+}
+
+.rt-pill--blocked {
+  color: rgba(255, 255, 255, 0.68);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.rt-block-card {
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.rt-block-card--current {
+  border-color: rgba(255, 74, 43, 0.28);
+  box-shadow: 0 0 0 1px rgba(255, 74, 43, 0.08) inset;
+}
+
+.rt-block-card--completed {
+  border-color: rgba(96, 165, 250, 0.24);
+}
+
+.rt-block-card--locked {
+  opacity: 0.82;
+}
+
+.rt-block-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rt-block-card__head strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.rt-block-card__head p,
+.rt-block-note,
+.rt-block-current__copy {
+  margin: 6px 0 0;
+}
+
+.rt-exercise-card {
+  padding: 14px;
+}
+
+.rt-exercise-card p,
+.rt-exercise-card span {
+  display: block;
+  margin-top: 6px;
+}
+
+.rt-block-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.rt-feedback-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.rt-effort-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rt-textarea,
+.rt-input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #181818;
+  color: #f0f0f0;
+  padding: 12px;
+}
+
+.rt-input--small {
+  max-width: 220px;
+}
+
+.rt-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.76);
 }
 
 .rt-actions {
@@ -113,11 +324,16 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rt-actions--start {
+  justify-content: flex-start;
 }
 
 .rt-btn {
   border: none;
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--r);
   color: #fff;
   padding: 10px 18px;
@@ -126,20 +342,42 @@
   cursor: pointer;
 }
 
-.rt-btn:hover { background: var(--r2); }
+.rt-btn:hover {
+  background: var(--r2);
+}
+
+.rt-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
 
 .rt-btn--ghost {
   border: 1px solid var(--border);
   background: transparent;
-  color: rgba(255,255,255,0.66);
+  color: rgba(255, 255, 255, 0.7);
 }
 
-.rt-btn--ghost:hover { border-color: var(--r); color: var(--r); background: transparent; }
+.rt-btn--ghost:hover {
+  background: transparent;
+  border-color: var(--r);
+  color: var(--r);
+}
 
 @media (max-width: 768px) {
-  .rt-header { padding: 12px 14px; }
-  .rt-back span, .rt-badge span { display: none; }
-  .rt-grid { grid-template-columns: 1fr; }
-  .rt-main { padding: 20px 14px 36px; }
-  .rt-hero h1 { font-size: 1.45rem; }
+  .rt-main {
+    padding: 20px 14px 42px;
+  }
+
+  .rt-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rt-hero h1 {
+    font-size: 1.45rem;
+  }
+
+  .rt-day-button {
+    min-width: 0;
+    flex: 1 1 140px;
+  }
 }
