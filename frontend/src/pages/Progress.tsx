@@ -100,7 +100,6 @@ export default function Progress() {
   const promDuracion = Math.round(displayData.reduce((a, e) => a + e.duracion, 0) / displayData.length);
   const totalMins    = displayData.reduce((a, e) => a + e.duracion, 0);
 
-  // Racha: días consecutivos con sesión
   const racha = (() => {
     const fechas = new Set(displayData.map(e => e.fecha));
     let streak = 0;
@@ -114,9 +113,7 @@ export default function Progress() {
     return streak;
   })();
 
-  // Radial para esfuerzo promedio
   const radialData = [{ name: "Esfuerzo", value: promEsfuerzo * 10, fill: esfuerzoColor(promEsfuerzo) }];
-
   const histVisible = [...displayData].reverse();
 
   const handleSave = async () => {
@@ -142,7 +139,8 @@ export default function Progress() {
   if (loading) return <div className="ts-loading"><span className="ts-spin" /></div>;
 
   return (
-    <div className="pr">
+    // ← CAMBIO: agregado onTouchStart para activar scroll en iOS WebView
+    <div className="pr" onTouchStart={() => {}}>
 
       {/* Header */}
       <header className="pr-header" ref={headerRef}>
@@ -198,15 +196,15 @@ export default function Progress() {
           </div>
         )}
 
-        {/* Stats row */}
+        {/* Stats */}
         <div className="pr-stats">
           {[
-            { icon: <Weight size={16} />,    label: "Peso actual",    val: `${lastEntry?.peso ?? 0} kg`,                                          color: "#ff4a2b" },
-            { icon: <TrendingUp size={16} />, label: "Variación",      val: `${diferencia > 0 ? "+" : ""}${diferencia} kg`,                       color: diferencia <= 0 ? "#22c55e" : "#ef4444" },
-            { icon: <Flame size={16} />,      label: "Sesiones",       val: String(displayData.length),                                            color: "#f59e0b" },
-            { icon: <Clock size={16} />,      label: "Tiempo total",   val: `${totalMins} min`,                                                    color: "#8b5cf6" },
-            { icon: <Activity size={16} />,   label: "Duración media", val: `${promDuracion} min`,                                                 color: "#06b6d4" },
-            { icon: <Target size={16} />,     label: "Racha actual",   val: racha > 0 ? `${racha} días` : "0 días",                                color: "#f97316" },
+            { icon: <Weight size={16} />,    label: "Peso actual",    val: `${lastEntry?.peso ?? 0} kg`,                            color: "#ff4a2b" },
+            { icon: <TrendingUp size={16} />, label: "Variación",      val: `${diferencia > 0 ? "+" : ""}${diferencia} kg`,          color: diferencia <= 0 ? "#22c55e" : "#ef4444" },
+            { icon: <Flame size={16} />,      label: "Sesiones",       val: String(displayData.length),                              color: "#f59e0b" },
+            { icon: <Clock size={16} />,      label: "Tiempo total",   val: `${totalMins} min`,                                      color: "#8b5cf6" },
+            { icon: <Activity size={16} />,   label: "Duración media", val: `${promDuracion} min`,                                   color: "#06b6d4" },
+            { icon: <Target size={16} />,     label: "Racha actual",   val: racha > 0 ? `${racha} días` : "0 días",                  color: "#f97316" },
           ].map(({ icon, label, val, color }) => (
             <div key={label} className="pr-stat">
               <div className="pr-stat-icon" style={{ background: `${color}18`, color }}>{icon}</div>
@@ -218,10 +216,9 @@ export default function Progress() {
           ))}
         </div>
 
-        {/* Gráficos */}
+        {/* Charts */}
         <div className="pr-charts-grid">
 
-          {/* Gráfico principal con tabs */}
           <div className="pr-chart-card pr-chart-card--main">
             <div className="pr-chart-top">
               <div className="pr-tabs">
@@ -289,7 +286,6 @@ export default function Progress() {
             )}
           </div>
 
-          {/* Radial esfuerzo promedio */}
           <div className="pr-chart-card pr-chart-card--radial">
             <div className="pr-chart-label"><Zap size={14} /> Esfuerzo promedio</div>
             <div className="pr-radial-wrap">
@@ -343,7 +339,6 @@ export default function Progress() {
               </div>
             ))}
           </div>
-
         </div>
 
         {/* Trophy */}
