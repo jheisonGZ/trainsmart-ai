@@ -33,8 +33,8 @@ El flujo principal es: Registro → Perfil físico → Historial de salud → Ge
 ### Backend
 
 * **Node.js + Express**
-* **MySQL + Sequelize**
-* Integración con LLM para generación de rutinas (pendiente)
+* **PostGreSQL + Supabase**
+* Integración con LLM GROQ - llama-3.3-70b-versatile para generación de rutinas
 
 ---
 
