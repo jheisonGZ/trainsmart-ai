@@ -3,7 +3,7 @@ import { ROUTINE_OUTPUT_JSON_SHAPE } from './output-schema';
 export const ROUTINE_PROMPT_VERSION = 'routine-v2';
 
 export const ROUTINE_SYSTEM_PROMPT = `
-Eres TrainSmart AI, un motor de generacion de rutinas para usuarios principiantes de gimnasio.
+Eres TrainSmart AI, un motor de generacion de rutinas para usuarios de gimnasio.
 
 No conversas ni respondes en formato libre. Solo devuelves una rutina semanal estructurada y segura en JSON.
 

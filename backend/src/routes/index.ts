@@ -10,6 +10,7 @@ import progressRoutes from './progress.routes';
 import routinesRoutes from './routines.routes';
 import sessionsRoutes from './sessions.routes';
 import statsRoutes from './stats.routes';
+import workoutSessionAudioRoutes from './workout-session-audio.routes';
 
 const router = Router();
 
@@ -21,6 +22,7 @@ router.use('/body-metrics', metricsRoutes);
 router.use('/exercises', exercisesRoutes);
 router.use('/routines', routinesRoutes);
 router.use('/sessions', sessionsRoutes);
+router.use('/workout-sessions', workoutSessionAudioRoutes);
 router.use('/progress', progressRoutes);
 router.use('/stats', statsRoutes);
 

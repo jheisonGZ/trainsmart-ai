@@ -7,6 +7,10 @@ import {
   getMySessionController,
   listMySessionsController,
 } from '../controllers/sessions.controller';
+import {
+  generateRoutineAudioController,
+  getRoutineAudioController,
+} from '../controllers/routine-audio.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import {
   validateBody,
@@ -25,6 +29,18 @@ const router = Router();
 
 router.get('/me', authMiddleware, validateQuery(sessionListQuerySchema), listMySessionsController);
 router.post('/', authMiddleware, validateBody(createSessionSchema), createMySessionController);
+router.post(
+  '/:sessionId/audio',
+  authMiddleware,
+  validateParams(sessionIdParamSchema),
+  generateRoutineAudioController,
+);
+router.get(
+  '/:sessionId/audio',
+  authMiddleware,
+  validateParams(sessionIdParamSchema),
+  getRoutineAudioController,
+);
 router.get(
   '/:sessionId',
   authMiddleware,

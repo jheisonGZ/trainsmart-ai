@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import RequestStateCard from "../components/RequestStateCard";
+import RoutineAudioPlayer from "../components/RoutineAudioPlayer";
 import { ApiClientError, api, clearApiClientState } from "../lib/api";
 import type {
   AuthMeResponse,
@@ -780,6 +781,12 @@ export default function Routine() {
                           : `${dayBlocks.length} sesiones internas`}
                     </span>
                   </div>
+
+                  {activeDaySession && !dayCompleted ? (
+                    <RoutineAudioPlayer sessionId={activeDaySession.id} />
+                  ) : dayCompleted ? (
+                    <RoutineAudioPlayer sessionId={activeDaySession?.id ?? "completed"} disabled />
+                  ) : null}
 
                   <div className="rt-days">
                     {routineDashboard?.days.map((day) => {

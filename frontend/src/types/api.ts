@@ -201,6 +201,13 @@ export interface WorkoutSessionDetail extends WorkoutSession {
   exercises: WorkoutSessionExercise[];
 }
 
+export interface RoutineAudioAccess {
+  audioUrl: string;
+  expiresIn: number;
+  narrationTextPreview?: string;
+  status: "available";
+}
+
 export interface ProgressStatsResponse {
   total_sessions: number;
   sessions_per_week: Array<{ week: string; count: number }>;

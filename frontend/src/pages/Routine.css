@@ -287,6 +287,48 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
+.rt-audio {
+  margin-top: 16px;
+  border: 1px solid rgba(255, 74, 43, 0.18);
+  background: rgba(255, 74, 43, 0.06);
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.rt-audio--disabled {
+  color: rgba(255, 255, 255, 0.62);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.rt-audio__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rt-audio__head strong {
+  display: block;
+}
+
+.rt-audio__head p,
+.rt-audio__error {
+  margin: 5px 0 0;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.rt-audio__player {
+  width: 100%;
+}
+
+.rt-audio__error {
+  color: #ff9b86;
+}
+
 .rt-feedback-grid {
   display: grid;
   gap: 12px;
