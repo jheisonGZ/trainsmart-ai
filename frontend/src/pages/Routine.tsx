@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
@@ -6,10 +6,13 @@ import {
   CheckCircle2,
   ClipboardList,
   Dumbbell,
+  Mic,
+  MicOff,
   PlayCircle,
   RefreshCcw,
   ShieldCheck,
   Sparkles,
+  TimerReset,
 } from "lucide-react";
 
 import RequestStateCard from "../components/RequestStateCard";
@@ -68,6 +71,123 @@ interface DayPreviewMeta {
   label: string;
   note: string;
   tone: DayPreviewTone;
+}
+
+interface SpeechRecognitionResultLike {
+  readonly isFinal: boolean;
+  readonly 0: {
+    readonly transcript: string;
+  };
+}
+
+interface SpeechRecognitionEventLike extends Event {
+  readonly results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionLike extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: Event & { error?: string }) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognitionLike;
+}
+
+const VOICE_TIMER_STORAGE_KEY = "ts:voice-timer-enabled";
+
+function isSpeechSynthesisSupported() {
+  return typeof window !== "undefined" && "speechSynthesis" in window;
+}
+
+function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const browserWindow = window as Window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+
+  return browserWindow.SpeechRecognition ?? browserWindow.webkitSpeechRecognition ?? null;
+}
+
+function speakText(text: string) {
+  if (!isSpeechSynthesisSupported()) {
+    return;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "es-CO";
+  utterance.rate = 1;
+  utterance.pitch = 1;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
+
+function formatTimerLabel(totalSeconds: number) {
+  const safeSeconds = Math.max(totalSeconds, 0);
+  const minutes = Math.floor(safeSeconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (safeSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function formatDurationMinutes(totalMinutes: number) {
+  if (totalMinutes <= 1) {
+    return "1 minuto";
+  }
+
+  return `${totalMinutes} minutos`;
+}
+
+function getStartSessionMessage(blockCount: number) {
+  return blockCount > 1
+    ? `Excelente. Comienzas la sesión 1 de ${blockCount}. Mantén el ritmo desde el calentamiento.`
+    : "Excelente. Ya comenzaste tu entrenamiento. Mantén el ritmo y cuida la técnica.";
+}
+
+function getNextBlockMotivation(nextBlockTitle: string) {
+  return `Excelente trabajo. Continúa con ${nextBlockTitle.toLowerCase()} y mantén el ritmo.`;
+}
+
+function getTimerCompletionMessage(currentBlockTitle: string) {
+  return `Buen trabajo. Terminó el descanso de ${currentBlockTitle.toLowerCase()}. Continúa con control.`;
+}
+
+function buildFinalSummaryMessage(input: {
+  dayLabel: string;
+  blockCount: number;
+  effort: "easy" | "moderate" | "hard";
+  startedAt: string | null;
+}) {
+  const startedAt = input.startedAt ? new Date(input.startedAt) : null;
+  const elapsedMinutes =
+    startedAt && !Number.isNaN(startedAt.getTime())
+      ? Math.max(1, Math.round((Date.now() - startedAt.getTime()) / 60000))
+      : null;
+
+  const effortLabel =
+    input.effort === "easy"
+      ? "fácil"
+      : input.effort === "moderate"
+        ? "moderado"
+        : "intenso";
+
+  const durationText = elapsedMinutes
+    ? ` en ${formatDurationMinutes(elapsedMinutes)}`
+    : "";
+
+  return `Has completado ${input.dayLabel}${durationText} con éxito. Cerraste ${input.blockCount} ${
+    input.blockCount === 1 ? "sesión interna" : "sesiones internas"
+  } y reportaste un esfuerzo ${effortLabel}. Excelente trabajo.`;
 }
 
 function getOptionalResource<T>(request: Promise<T>) {
@@ -208,6 +328,22 @@ export default function Routine() {
   const [sessionNotes, setSessionNotes] = useState("");
   const [previewDayId, setPreviewDayId] = useState<string | null>(null);
   const [completedBlockCount, setCompletedBlockCount] = useState(0);
+  const [voiceTimerEnabled, setVoiceTimerEnabled] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    return window.localStorage.getItem(VOICE_TIMER_STORAGE_KEY) !== "false";
+  });
+  const [timerSeconds, setTimerSeconds] = useState(30);
+  const [timerRemaining, setTimerRemaining] = useState(30);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [isListeningToInstructions, setIsListeningToInstructions] = useState(false);
+  const [instructionTranscriptError, setInstructionTranscriptError] = useState<string | null>(null);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const timerIntervalRef = useRef<number | null>(null);
+  const spokenTimerMarksRef = useRef<Set<number>>(new Set());
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const isBusy = busyAction !== null;
 
   const readyToGenerate = Boolean(
@@ -251,6 +387,18 @@ export default function Routine() {
           completedDayIds,
         )
       : null;
+  const speechRecognitionSupported = Boolean(getSpeechRecognitionConstructor());
+  const suggestedTimerSeconds = useMemo(() => {
+    if (!currentBlock) {
+      return 30;
+    }
+
+    const restValues = currentBlock.exercises
+      .map((exercise) => exercise.rest_seconds ?? 0)
+      .filter((value) => value > 0);
+
+    return restValues[0] ?? 30;
+  }, [currentBlock]);
 
   useEffect(() => {
     if (!routineToday) {
@@ -265,7 +413,7 @@ export default function Routine() {
 
       return routineToday.today.id;
     });
-  }, [routineDashboard?.days, routineToday?.today.id]);
+  }, [routineDashboard?.days, routineToday]);
 
   useEffect(() => {
     if (dayCompleted) {
@@ -280,7 +428,75 @@ export default function Routine() {
 
     const storedCount = readCompletedBlocks(activeDaySession.id);
     setCompletedBlockCount(Math.min(storedCount, Math.max(dayBlocks.length - 1, 0)));
-  }, [activeDaySession?.id, dayBlocks.length, dayCompleted]);
+  }, [activeDaySession, dayBlocks.length, dayCompleted]);
+
+  useEffect(() => {
+    setTimerRunning(false);
+    setTimerSeconds(suggestedTimerSeconds);
+    setTimerRemaining(suggestedTimerSeconds);
+    spokenTimerMarksRef.current.clear();
+  }, [activeDaySession?.id, currentBlock?.id, suggestedTimerSeconds]);
+
+  useEffect(() => {
+    if (!timerRunning) {
+      if (timerIntervalRef.current !== null) {
+        window.clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      return;
+    }
+
+    timerIntervalRef.current = window.setInterval(() => {
+      setTimerRemaining((current) => {
+        if (current <= 1) {
+          window.clearInterval(timerIntervalRef.current ?? undefined);
+          timerIntervalRef.current = null;
+          setTimerRunning(false);
+          return 0;
+        }
+
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerIntervalRef.current !== null) {
+        window.clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
+  }, [timerRunning]);
+
+  useEffect(() => {
+    if (!voiceTimerEnabled || !isSpeechSynthesisSupported() || !timerRunning) {
+      return;
+    }
+
+    if (timerRemaining === 10 && !spokenTimerMarksRef.current.has(10)) {
+      speakText("Quedan 10 segundos.");
+      spokenTimerMarksRef.current.add(10);
+      return;
+    }
+
+    if (timerRemaining === 0 && !spokenTimerMarksRef.current.has(0)) {
+      speakText(getTimerCompletionMessage(currentBlock?.title ?? "la sesión actual"));
+      spokenTimerMarksRef.current.add(0);
+    }
+  }, [currentBlock?.title, timerRemaining, timerRunning, voiceTimerEnabled]);
+
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current !== null) {
+        window.clearInterval(timerIntervalRef.current);
+      }
+
+      recognitionRef.current?.stop();
+
+      if (isSpeechSynthesisSupported()) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   async function fetchRoutineSnapshot() {
     const [authMe, profileData, healthData, sessions, dashboard, today, routines] =
@@ -405,6 +621,138 @@ export default function Routine() {
     }
   };
 
+  const handleToggleInstructionDictation = () => {
+    if (isListeningToInstructions) {
+      recognitionRef.current?.stop();
+      setIsListeningToInstructions(false);
+      return;
+    }
+
+    const SpeechRecognitionApi = getSpeechRecognitionConstructor();
+
+    if (!SpeechRecognitionApi) {
+      setInstructionTranscriptError(
+        "Tu navegador no soporta dictado por voz. Usa Chrome o Edge para habilitarlo.",
+      );
+      return;
+    }
+
+    const recognition = new SpeechRecognitionApi();
+    recognition.lang = "es-CO";
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.onresult = (event) => {
+      let finalText = "";
+      let interimText = "";
+
+      for (let index = 0; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const transcript = result[0]?.transcript?.trim() ?? "";
+
+        if (!transcript) {
+          continue;
+        }
+
+        if (result.isFinal) {
+          finalText += `${transcript} `;
+        } else {
+          interimText += `${transcript} `;
+        }
+      }
+
+      setLiveTranscript(interimText.trim());
+
+      if (finalText.trim()) {
+        setCustomInstructions((current) =>
+          `${current.trim()} ${finalText.trim()}`.trim(),
+        );
+      }
+    };
+    recognition.onerror = (event) => {
+      const errorCode = event.error ?? "unknown";
+      const errorMessage =
+        errorCode === "not-allowed"
+          ? "El navegador bloqueó el micrófono. Debes permitir acceso para usar el dictado."
+          : errorCode === "no-speech"
+            ? "No detectamos voz. Intenta de nuevo hablando más cerca del micrófono."
+            : "No fue posible completar la transcripción por voz en este momento.";
+
+      setInstructionTranscriptError(errorMessage);
+      setLiveTranscript("");
+      setIsListeningToInstructions(false);
+    };
+    recognition.onend = () => {
+      setIsListeningToInstructions(false);
+      setLiveTranscript("");
+      recognitionRef.current = null;
+    };
+
+    setInstructionTranscriptError(null);
+    setLiveTranscript("");
+    setIsListeningToInstructions(true);
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const handleToggleVoiceTimer = () => {
+    const nextValue = !voiceTimerEnabled;
+    setVoiceTimerEnabled(nextValue);
+    window.localStorage.setItem(VOICE_TIMER_STORAGE_KEY, String(nextValue));
+
+    if (!nextValue && isSpeechSynthesisSupported()) {
+      window.speechSynthesis.cancel();
+    }
+  };
+
+  const handleTimerInputChange = (value: string) => {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+      setTimerSeconds(0);
+      setTimerRemaining(0);
+      return;
+    }
+
+    const nextValue = Math.max(0, Math.min(600, Math.round(parsed)));
+    setTimerSeconds(nextValue);
+    setTimerRemaining(nextValue);
+    setTimerRunning(false);
+    spokenTimerMarksRef.current.clear();
+  };
+
+  const handleStartTimer = () => {
+    if (timerSeconds <= 0) {
+      return;
+    }
+
+    spokenTimerMarksRef.current.clear();
+    setTimerRemaining(timerSeconds);
+    setTimerRunning(true);
+
+    if (voiceTimerEnabled) {
+      speakText("3, 2, 1, comienza.");
+    }
+  };
+
+  const handlePauseTimer = () => {
+    setTimerRunning(false);
+
+    if (isSpeechSynthesisSupported()) {
+      window.speechSynthesis.cancel();
+    }
+  };
+
+  const handleResetTimer = () => {
+    setTimerRunning(false);
+    setTimerSeconds(suggestedTimerSeconds);
+    setTimerRemaining(suggestedTimerSeconds);
+    spokenTimerMarksRef.current.clear();
+
+    if (isSpeechSynthesisSupported()) {
+      window.speechSynthesis.cancel();
+    }
+  };
+
   const handleGenerate = async () => {
     await withBusyState("generate", async () => {
       const result = await api.post<RoutineMutationResponse>("/routines/generate", {
@@ -520,6 +868,10 @@ export default function Routine() {
       setCompletedBlockCount(0);
       writeCompletedBlocks(session.id, 0);
 
+      if (voiceTimerEnabled) {
+        speakText(getStartSessionMessage(dayBlocks.length));
+      }
+
       await Alert.fire({
         icon: "success",
         title: "Entrenamiento iniciado",
@@ -538,47 +890,64 @@ export default function Routine() {
 
     try {
       await withBusyState("finish-session", async () => {
-      const nextCompletedCount = Math.min(completedBlockCount + 1, dayBlocks.length);
+        const nextCompletedCount = Math.min(completedBlockCount + 1, dayBlocks.length);
 
-      if (nextCompletedCount < dayBlocks.length) {
-        setCompletedBlockCount(nextCompletedCount);
-        writeCompletedBlocks(activeDaySession.id, nextCompletedCount);
+        if (nextCompletedCount < dayBlocks.length) {
+          setCompletedBlockCount(nextCompletedCount);
+          writeCompletedBlocks(activeDaySession.id, nextCompletedCount);
+
+          if (voiceTimerEnabled) {
+            speakText(getNextBlockMotivation(dayBlocks[nextCompletedCount].title));
+          }
+
+          await Alert.fire({
+            icon: "success",
+            title: `${currentBlock.title} completada`,
+            text: `Continúa con la ${dayBlocks[nextCompletedCount].title.toLowerCase()} de hoy.`,
+          });
+          return;
+        }
+
+        await api.put<WorkoutSession>(`/sessions/${activeDaySession.id}/finish`, {
+          perceived_effort: effort,
+          difficulty_rating: Number(difficulty),
+          pain_or_discomfort: painOrDiscomfort,
+          notes: sessionNotes.trim() || undefined,
+        });
+
+        clearApiClientState();
+        clearCompletedBlocks(activeDaySession.id);
+        setSessionNotes("");
+        setPainOrDiscomfort(false);
+        setDifficulty("6");
+        setEffort("moderate");
+        setCompletedBlockCount(dayBlocks.length);
+        setTimerRunning(false);
+        spokenTimerMarksRef.current.clear();
+
+        if (voiceTimerEnabled) {
+          speakText(
+            buildFinalSummaryMessage({
+              dayLabel: routineToday?.today.day_label ?? "tu entrenamiento de hoy",
+              blockCount: dayBlocks.length,
+              effort,
+              startedAt: activeDaySession.started_at,
+            }),
+          );
+        }
+
+        await refreshRoutineData();
 
         await Alert.fire({
           icon: "success",
-          title: `${currentBlock.title} completada`,
-          text: `Continúa con la ${dayBlocks[nextCompletedCount].title.toLowerCase()} de hoy.`,
+          title: "Día completado",
+          text:
+            dayBlocks.length > 1
+              ? "Completaste la última sesión de hoy y con eso cerraste el día de entrenamiento."
+              : "Completaste tu entrenamiento de hoy. Descansa y vuelve mañana para el siguiente día.",
+          confirmButtonText: "Volver al dashboard",
+          allowOutsideClick: false,
         });
-        return;
-      }
-
-      await api.put<WorkoutSession>(`/sessions/${activeDaySession.id}/finish`, {
-        perceived_effort: effort,
-        difficulty_rating: Number(difficulty),
-        pain_or_discomfort: painOrDiscomfort,
-        notes: sessionNotes.trim() || undefined,
-      });
-
-      clearApiClientState();
-      clearCompletedBlocks(activeDaySession.id);
-      setSessionNotes("");
-      setPainOrDiscomfort(false);
-      setDifficulty("6");
-      setEffort("moderate");
-      setCompletedBlockCount(dayBlocks.length);
-
-      await refreshRoutineData();
-
-      await Alert.fire({
-        icon: "success",
-        title: "Día completado",
-        text:
-          dayBlocks.length > 1
-            ? "Completaste la última sesión de hoy y con eso cerraste el día de entrenamiento."
-            : "Completaste tu entrenamiento de hoy. Descansa y vuelve mañana para el siguiente día.",
-        confirmButtonText: "Volver al dashboard",
-        allowOutsideClick: false,
-      });
 
         navigate("/home", { replace: true });
       });
@@ -669,6 +1038,22 @@ export default function Routine() {
                 <p>
                   Puedes enviar instrucciones extra para que la propuesta se adapte a tus preferencias, restricciones y estilo de entrenamiento.
                 </p>
+                <div className="rt-voice-tools">
+                  <button
+                    type="button"
+                    className={`rt-btn${isListeningToInstructions ? "" : " rt-btn--ghost"}`}
+                    onClick={handleToggleInstructionDictation}
+                    disabled={isBusy || !speechRecognitionSupported}
+                  >
+                    {isListeningToInstructions ? <MicOff size={14} /> : <Mic size={14} />}
+                    {isListeningToInstructions ? "Detener dictado" : "Dictar instrucciones"}
+                  </button>
+                  <span className="rt-voice-tools__hint">
+                    {speechRecognitionSupported
+                      ? "Habla para completar tus instrucciones sin escribir."
+                      : "Dictado disponible en navegadores compatibles como Chrome o Edge."}
+                  </span>
+                </div>
                 <textarea
                   className="rt-textarea"
                   value={customInstructions}
@@ -677,6 +1062,12 @@ export default function Routine() {
                   rows={4}
                   disabled={isBusy}
                 />
+                {liveTranscript ? (
+                  <p className="rt-live-transcript">Escuchando: {liveTranscript}</p>
+                ) : null}
+                {instructionTranscriptError ? (
+                  <p className="rt-error-copy">{instructionTranscriptError}</p>
+                ) : null}
                 <div className="rt-actions rt-actions--start">
                   {!routineDashboard ? (
                     <button className="rt-btn" onClick={() => void handleGenerate()} disabled={isBusy}>
@@ -924,6 +1315,80 @@ export default function Routine() {
 
                           {isCurrent ? (
                             <div className="rt-block-current">
+                              <div className="rt-timer-card">
+                                <div className="rt-timer-card__head">
+                                  <div>
+                                    <strong>Temporizador guiado</strong>
+                                    <p>
+                                      Descanso sugerido: {suggestedTimerSeconds}s. Usa voz para el conteo inicial y el aviso cuando queden 10 segundos.
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`rt-btn${voiceTimerEnabled ? "" : " rt-btn--ghost"}`}
+                                    onClick={handleToggleVoiceTimer}
+                                  >
+                                    {voiceTimerEnabled ? <Mic size={14} /> : <MicOff size={14} />}
+                                    {voiceTimerEnabled ? "Voz activa" : "Voz apagada"}
+                                  </button>
+                                </div>
+
+                                <div className="rt-timer-card__controls">
+                                  <label className="rt-timer-card__input">
+                                    <span>Segundos</span>
+                                    <input
+                                      className="rt-input rt-input--small"
+                                      type="number"
+                                      min={0}
+                                      max={600}
+                                      value={timerSeconds}
+                                      onChange={(event) => handleTimerInputChange(event.target.value)}
+                                      disabled={isBusy}
+                                    />
+                                  </label>
+
+                                  <div className="rt-timer-card__actions">
+                                    <button
+                                      type="button"
+                                      className="rt-btn"
+                                      onClick={handleStartTimer}
+                                      disabled={isBusy || timerSeconds <= 0}
+                                    >
+                                      <PlayCircle size={14} />
+                                      {timerRunning ? "Reiniciar conteo" : "Iniciar conteo"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rt-btn rt-btn--ghost"
+                                      onClick={handlePauseTimer}
+                                      disabled={isBusy || !timerRunning}
+                                    >
+                                      Pausar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rt-btn rt-btn--ghost"
+                                      onClick={handleResetTimer}
+                                      disabled={isBusy}
+                                    >
+                                      <TimerReset size={14} />
+                                      Restablecer
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="rt-timer-card__status">
+                                  <strong>{formatTimerLabel(timerRemaining)}</strong>
+                                  <span>
+                                    {timerRunning
+                                      ? "Conteo activo"
+                                      : timerRemaining === 0
+                                        ? "Conteo finalizado"
+                                        : "Listo para iniciar"}
+                                  </span>
+                                </div>
+                              </div>
+
                               {!isLastBlock ? (
                                 <>
                                   <p className="rt-block-current__copy">

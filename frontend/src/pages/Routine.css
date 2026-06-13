@@ -334,6 +334,65 @@
   gap: 12px;
 }
 
+.rt-voice-tools {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.rt-voice-tools__hint,
+.rt-live-transcript,
+.rt-error-copy {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.rt-live-transcript {
+  margin-top: 10px;
+  color: #ffb4a3;
+}
+
+.rt-error-copy {
+  margin-top: 10px;
+  color: #ff9b86;
+}
+
+.rt-timer-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 74, 43, 0.18);
+  background: rgba(255, 74, 43, 0.05);
+}
+
+.rt-timer-card__head,
+.rt-timer-card__controls,
+.rt-timer-card__actions,
+.rt-timer-card__status {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rt-timer-card__input {
+  display: grid;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+}
+
+.rt-timer-card__status strong {
+  font-size: 1.8rem;
+  letter-spacing: 0.06em;
+}
+
+.rt-timer-card__status span {
+  color: rgba(255, 255, 255, 0.68);
+}
+
 .rt-effort-group {
   display: flex;
   gap: 10px;
@@ -374,6 +433,10 @@
 }
 
 .rt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border: none;
   border-radius: 10px;
   background: var(--r);
@@ -421,5 +484,19 @@
   .rt-day-button {
     min-width: 0;
     flex: 1 1 140px;
+  }
+
+  .rt-timer-card__head,
+  .rt-timer-card__controls,
+  .rt-timer-card__actions,
+  .rt-timer-card__status {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .rt-timer-card__actions .rt-btn,
+  .rt-voice-tools .rt-btn {
+    width: 100%;
+    justify-content: center;
   }
 }

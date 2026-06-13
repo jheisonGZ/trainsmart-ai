@@ -58,8 +58,10 @@ export default function RoutineAudioPlayer({
   }, [disabled]);
 
   useEffect(() => {
+    const audioElement = audioRef.current;
+
     return () => {
-      audioRef.current?.pause();
+      audioElement?.pause();
     };
   }, []);
 

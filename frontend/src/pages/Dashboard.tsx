@@ -7,6 +7,8 @@ import {
   ChevronRight,
   Scale,
   Target,
+  Volume2,
+  VolumeX,
   Zap,
 } from "lucide-react";
 
@@ -42,6 +44,11 @@ const bmiCategoryLabel: Record<string, string> = {
 };
 
 const isMobile = () => window.innerWidth <= 768;
+const VOICE_ENABLED_STORAGE_KEY = "ts:voice-greeting-enabled";
+
+function isSpeechSynthesisSupported() {
+  return typeof window !== "undefined" && "speechSynthesis" in window;
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -52,6 +59,13 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [voiceGreetingEnabled, setVoiceGreetingEnabled] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    return window.localStorage.getItem(VOICE_ENABLED_STORAGE_KEY) !== "false";
+  });
 
   const headerRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
@@ -160,6 +174,48 @@ export default function Dashboard() {
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+  const spokenGreeting = `${greeting}, ${firstName}. Listo para iniciar tu rutina de hoy.`;
+
+  useEffect(() => {
+    if (
+      loading ||
+      loadError ||
+      !voiceGreetingEnabled ||
+      !isSpeechSynthesisSupported() ||
+      !firebaseUser?.uid
+    ) {
+      return;
+    }
+
+    const spokenGreetingSessionKey = `ts:voice-greeting-spoken:${firebaseUser.uid}`;
+
+    if (window.sessionStorage.getItem(spokenGreetingSessionKey) === "true") {
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(spokenGreeting);
+    utterance.lang = "es-CO";
+    utterance.rate = 1;
+    utterance.pitch = 1;
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+    window.sessionStorage.setItem(spokenGreetingSessionKey, "true");
+
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, [firebaseUser?.uid, loadError, loading, spokenGreeting, voiceGreetingEnabled]);
+
+  const handleToggleVoiceGreeting = () => {
+    const nextValue = !voiceGreetingEnabled;
+    setVoiceGreetingEnabled(nextValue);
+    window.localStorage.setItem(VOICE_ENABLED_STORAGE_KEY, String(nextValue));
+
+    if (!nextValue && isSpeechSynthesisSupported()) {
+      window.speechSynthesis.cancel();
+    }
+  };
 
   if (loading) {
     return (
@@ -257,6 +313,27 @@ export default function Dashboard() {
           <h1 className="db-name">{firstName}</h1>
         </div>
         <div className="db-hero-right">
+          {isSpeechSynthesisSupported() ? (
+            <button
+              type="button"
+              className="db-voice-toggle"
+              onClick={handleToggleVoiceGreeting}
+              aria-pressed={voiceGreetingEnabled}
+              aria-label={
+                voiceGreetingEnabled
+                  ? "Desactivar saludo por voz"
+                  : "Activar saludo por voz"
+              }
+              title={
+                voiceGreetingEnabled
+                  ? "Desactivar saludo por voz"
+                  : "Activar saludo por voz"
+              }
+            >
+              {voiceGreetingEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+              <span>{voiceGreetingEnabled ? "Voz activa" : "Voz apagada"}</span>
+            </button>
+          ) : null}
           <div className="db-desktop-avatar">
             {firebaseUser?.photoURL || profile?.avatar_url ? (
               <img
