@@ -280,6 +280,53 @@
   margin-top: 6px;
 }
 
+.rt-series-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rt-series-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.68);
+  padding: 7px 11px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.rt-series-chip--active {
+  border-color: rgba(255, 74, 43, 0.34);
+  background: rgba(255, 74, 43, 0.12);
+  color: #ffb4a3;
+}
+
+.rt-series-chip--done {
+  border-color: rgba(96, 165, 250, 0.24);
+  background: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+}
+
+.rt-exercise-note,
+.rt-session-summary p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.5;
+}
+
+.rt-session-summary {
+  border-radius: 14px;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  background: rgba(96, 165, 250, 0.08);
+  padding: 14px;
+}
+
 .rt-block-note {
   display: inline-flex;
   align-items: center;

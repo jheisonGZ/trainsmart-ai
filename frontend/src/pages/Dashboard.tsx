@@ -20,6 +20,7 @@ import type {
   ProfileRecord,
   RoutineTodayResponse,
 } from "../types/api";
+import { consumeVoiceGreetingPending } from "../utils/welcomeGreeting";
 import "./Dashboard.css";
 
 const goalLabel: Record<string, string> = {
@@ -46,13 +47,13 @@ const bmiCategoryLabel: Record<string, string> = {
 const isMobile = () => window.innerWidth <= 768;
 const VOICE_ENABLED_STORAGE_KEY = "ts:voice-greeting-enabled";
 
-function isSpeechSynthesisSupported() {
-  return typeof window !== "undefined" && "speechSynthesis" in window;
+function isAudioPlaybackSupported() {
+  return typeof window !== "undefined" && typeof Audio !== "undefined";
 }
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, getSupabaseAccessToken } = useAuth();
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
   const [authState, setAuthState] = useState<AuthMeResponse | null>(null);
   const [todayRoutine, setTodayRoutine] = useState<RoutineTodayResponse | null>(null);
@@ -69,6 +70,8 @@ export default function Dashboard() {
 
   const headerRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
+  const welcomeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const welcomeAudioUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -132,6 +135,17 @@ export default function Dashboard() {
   }, [reloadKey]);
 
   useEffect(() => {
+    return () => {
+      welcomeAudioRef.current?.pause();
+
+      if (welcomeAudioUrlRef.current) {
+        URL.revokeObjectURL(welcomeAudioUrlRef.current);
+        welcomeAudioUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (loading || isMobile()) {
       return;
     }
@@ -181,39 +195,73 @@ export default function Dashboard() {
       loading ||
       loadError ||
       !voiceGreetingEnabled ||
-      !isSpeechSynthesisSupported() ||
-      !firebaseUser?.uid
+      !isAudioPlaybackSupported()
     ) {
       return;
     }
 
-    const spokenGreetingSessionKey = `ts:voice-greeting-spoken:${firebaseUser.uid}`;
-
-    if (window.sessionStorage.getItem(spokenGreetingSessionKey) === "true") {
+    if (!consumeVoiceGreetingPending()) {
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(spokenGreeting);
-    utterance.lang = "es-CO";
-    utterance.rate = 1;
-    utterance.pitch = 1;
+    let cancelled = false;
 
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-    window.sessionStorage.setItem(spokenGreetingSessionKey, "true");
+    async function playWelcomeAudio() {
+      try {
+        const token = await getSupabaseAccessToken();
+
+        if (!token || cancelled) {
+          return;
+        }
+
+        const response = await fetch('/api/greetings/welcome-audio', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          console.warn('Failed to load ElevenLabs welcome greeting', {
+            status: response.status,
+          });
+          return;
+        }
+
+        const audioBlob = await response.blob();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (welcomeAudioUrlRef.current) {
+          URL.revokeObjectURL(welcomeAudioUrlRef.current);
+        }
+
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        welcomeAudioUrlRef.current = audioUrl;
+        welcomeAudioRef.current = audio;
+
+        await audio.play();
+      } catch (error) {
+        console.warn('Could not play ElevenLabs welcome greeting', error);
+      }
+    }
+
+    void playWelcomeAudio();
 
     return () => {
-      window.speechSynthesis.cancel();
+      cancelled = true;
     };
-  }, [firebaseUser?.uid, loadError, loading, spokenGreeting, voiceGreetingEnabled]);
+  }, [getSupabaseAccessToken, loadError, loading, spokenGreeting, voiceGreetingEnabled]);
 
   const handleToggleVoiceGreeting = () => {
     const nextValue = !voiceGreetingEnabled;
     setVoiceGreetingEnabled(nextValue);
     window.localStorage.setItem(VOICE_ENABLED_STORAGE_KEY, String(nextValue));
 
-    if (!nextValue && isSpeechSynthesisSupported()) {
-      window.speechSynthesis.cancel();
+    if (!nextValue) {
+      welcomeAudioRef.current?.pause();
     }
   };
 
@@ -313,7 +361,7 @@ export default function Dashboard() {
           <h1 className="db-name">{firstName}</h1>
         </div>
         <div className="db-hero-right">
-          {isSpeechSynthesisSupported() ? (
+          {isAudioPlaybackSupported() ? (
             <button
               type="button"
               className="db-voice-toggle"

@@ -7,12 +7,14 @@ import {
   getSessionById,
   getSessionExercises,
   listSessionsByUser,
+  updateSessionExerciseProgress,
 } from '../repositories/sessions.repository';
 import type {
   CreateSessionInput,
   FinishSessionInput,
   SessionExerciseInput,
   SessionListQueryInput,
+  UpdateSessionExerciseProgressInput,
 } from '../validators/sessions.schemas';
 import { lockRoutineAudio } from './routineAudio.service';
 
@@ -53,6 +55,22 @@ export async function addExerciseToSession(
   input: SessionExerciseInput,
 ) {
   return addSessionExercise(supabase, sessionId, auth.userId, input);
+}
+
+export async function updateExerciseProgressForSession(
+  supabase: RequestSupabaseClient,
+  auth: AuthUser,
+  sessionId: string,
+  exerciseOrder: number,
+  input: UpdateSessionExerciseProgressInput,
+) {
+  return updateSessionExerciseProgress(
+    supabase,
+    sessionId,
+    auth.userId,
+    exerciseOrder,
+    input,
+  );
 }
 
 export async function finishMySession(

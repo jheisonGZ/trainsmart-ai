@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { getHealthCheckController } from '../controllers/stats.controller';
 import authRoutes from './auth.routes';
 import exercisesRoutes from './exercises.routes';
+import greetingsRoutes from './greetings.routes';
 import healthRoutes from './health.routes';
 import metricsRoutes from './metrics.routes';
 import profilesRoutes from './profiles.routes';
@@ -16,6 +17,7 @@ const router = Router();
 
 router.get('/health', getHealthCheckController);
 router.use('/auth', authRoutes);
+router.use('/greetings', greetingsRoutes);
 router.use('/profiles', profilesRoutes);
 router.use('/health-history', healthRoutes);
 router.use('/body-metrics', metricsRoutes);
