@@ -161,6 +161,11 @@ function formatDurationMinutes(totalMinutes: number) {
   return `${totalMinutes} minutos`;
 }
 
+function formatLocalIsoDate(date = new Date()) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
+
 function getExerciseSeriesCount(exercise: RoutineDashboardDay["exercises"][number]) {
   return Math.max(1, exercise.sets || 1);
 }
@@ -1326,7 +1331,7 @@ export default function Routine() {
 
     await withBusyState("start-session", async () => {
       const session = await api.post<WorkoutSession>("/sessions", {
-        session_date: new Date().toISOString().slice(0, 10),
+        session_date: formatLocalIsoDate(),
         routine_version_id: routineToday.version.id,
         routine_day_id: routineToday.today.id,
         notes: "",
