@@ -2,7 +2,8 @@
 
 # 🏋️ TrainSmart AI — Frontend
 
-<img width="1302" height="816" alt="login (2)" src="https://github.com/user-attachments/assets/f0930ee0-fccf-4236-bda9-2701c9ca85de" />
+<img width="679" height="380" alt="image" src="https://github.com/user-attachments/assets/6f102185-ea51-4206-a791-849793cd42dc" />
+
 
 Aplicación web inteligente que genera rutinas de entrenamiento personalizadas usando IA (LLM). Desarrollada con  **React + TypeScript + Vite** .
 
