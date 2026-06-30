@@ -1,6 +1,8 @@
 
 
-# 🏋️ TrainSmart AI — Frontend
+# 🏋️ TrainSmart AI 
+Frontend
+     
 
 <img width="679" height="380" alt="image" src="https://github.com/user-attachments/assets/6f102185-ea51-4206-a791-849793cd42dc" />
 
