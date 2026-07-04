@@ -12,8 +12,13 @@ export function buildRoutineUserPrompt({
   customInstructions,
   reason,
 }: RoutinePromptInput) {
-  const { profile, health, latest_metrics: latestMetrics, feedback_summary: feedbackSummary } =
-    contextSnapshot;
+  const {
+    profile,
+    health,
+    latest_metrics: latestMetrics,
+    environment_analysis: environmentAnalysis,
+    feedback_summary: feedbackSummary,
+  } = contextSnapshot;
 
   const sections: string[] = [];
 
@@ -25,6 +30,9 @@ export function buildRoutineUserPrompt({
 
   sections.push('ULTIMAS_MEDICIONES');
   sections.push(JSON.stringify(latestMetrics, null, 2));
+
+  sections.push('ENTORNO_Y_EQUIPO_DISPONIBLE');
+  sections.push(JSON.stringify(environmentAnalysis, null, 2));
 
   sections.push('RETROALIMENTACION_RECIENTE');
   sections.push(JSON.stringify(feedbackSummary, null, 2));
@@ -47,6 +55,7 @@ export function buildRoutineUserPrompt({
       'Evita consejos medicos y selecciones de ejercicios inseguras.',
       'Usa espanol neutro en todo el contenido textual.',
       'Prefiere nombres de ejercicios comunes en espanol y faciles de entender para principiantes.',
+      'Si existe contexto visual de entorno o equipamiento, adaptate solo a ese equipo confirmado y no asumas maquinas no visibles.',
       'Si hay riesgos relevantes, incluyelos en safety_warnings.',
       'No dejes campos requeridos vacios.',
       'Cada dia debe incluir calentamiento, vuelta a la calma y al menos un ejercicio.',

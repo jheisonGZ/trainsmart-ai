@@ -67,6 +67,13 @@ export interface ContextSnapshot {
     bmi?: number | null;
     notes?: string | null;
   } | null;
+  environment_analysis: {
+    summary: string;
+    detected_equipment: string[];
+    detected_space_tags: string[];
+    training_context: string;
+    created_at: string;
+  } | null;
   feedback_summary: string | null;
 }
 

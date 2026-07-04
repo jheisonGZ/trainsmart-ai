@@ -26,4 +26,7 @@ export interface HealthCheckResponse {
     configured: boolean;
     model: string;
   };
+  ximilar: {
+    configured: boolean;
+  };
 }

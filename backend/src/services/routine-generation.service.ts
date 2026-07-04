@@ -1,6 +1,7 @@
 import type { RequestSupabaseClient } from '../lib/supabase/request';
 import type { AuthUser } from '../types/auth.types';
 import { buildRoutinePrompt } from '../prompts/prompt-builder';
+import { getEnvironmentContextSnapshot } from './environment-vision.service';
 import { generateStructuredRoutine } from '../lib/llm';
 import { getHealthHistoryByUserId } from '../repositories/health.repository';
 import { getLatestMetric } from '../repositories/metrics.repository';
@@ -22,12 +23,14 @@ async function buildRoutineContext(
   supabase: RequestSupabaseClient,
   auth: AuthUser,
 ): Promise<ContextSnapshot> {
-  const [profile, health, latestMetrics, feedbackSummary] = await Promise.all([
+  const [profile, health, latestMetrics, environmentAnalysis, feedbackSummary] =
+    await Promise.all([
     getProfileByUserId(supabase, auth.userId),
     getHealthHistoryByUserId(supabase, auth.userId),
     getLatestMetric(supabase, auth.userId),
+    getEnvironmentContextSnapshot(supabase, auth.userId),
     getRecentFeedbackSummary(supabase, auth.userId),
-  ]);
+    ]);
 
   if (!profile) {
     throw new PreconditionFailedError('Profile must exist before generating a routine.');
@@ -93,6 +96,7 @@ async function buildRoutineContext(
           notes: latestMetrics.notes,
         }
       : null,
+    environment_analysis: environmentAnalysis,
     feedback_summary: feedbackSummary,
   };
 }

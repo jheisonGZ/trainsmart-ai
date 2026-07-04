@@ -35,6 +35,9 @@ export const getHealthCheckController = asyncHandler(async (_req, res) => {
       configured: Boolean(env.GROQ_API_KEY),
       model: env.LLM_MODEL,
     },
+    ximilar: {
+      configured: Boolean(env.XIMILAR_API_TOKEN),
+    },
   };
 
   return sendSuccess(res, payload, databaseConnected ? 200 : 503);

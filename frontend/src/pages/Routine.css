@@ -334,6 +334,59 @@
   gap: 12px;
 }
 
+.rt-upload {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 74, 43, 0.35);
+  background: rgba(255, 74, 43, 0.08);
+  color: #fff;
+  cursor: pointer;
+  min-height: 46px;
+  padding: 0 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.rt-upload input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.rt-upload span {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.rt-environment {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.rt-environment__image {
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+}
+
+.rt-environment__summary,
+.rt-environment__context,
+.rt-environment__hint {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.rt-environment__hint {
+  margin-top: 10px;
+}
+
 .rt-effort-group {
   display: flex;
   gap: 10px;

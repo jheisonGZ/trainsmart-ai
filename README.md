@@ -62,9 +62,12 @@ Esto instalará automáticamente todas las dependencias del `package.json`:
 
 ### 4. Configurar variables de entorno
 
-Crea un archivo `.env` en la raíz de `/frontend` con las credenciales de Firebase:
+Crea un archivo `.env` en la raíz de `/frontend` con las credenciales operativas:
 
 ```env
+VITE_SUPABASE_URL=tu_supabase_url
+VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key
+VITE_OAUTH_REDIRECT_URL=http://localhost:5173/auth/callback
 VITE_FIREBASE_API_KEY=tu_api_key
 VITE_FIREBASE_AUTH_DOMAIN=tu_proyecto.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=tu_proyecto_id
@@ -163,6 +166,148 @@ frontend/
 
 * **Authentication** — Login con email/contraseña y Google
 * **Firestore** *(si aplica)* — Base de datos en tiempo real
+
+---
+
+## 🧠 Nueva funcionalidad — Análisis del entorno y equipo disponible
+
+Se agregó la primera propuesta del MVP dentro de `Routine.tsx`.
+
+### ¿Qué hace?
+
+* Permite subir una foto del espacio de entrenamiento del usuario
+* Envía la imagen al backend para analizarla con Ximilar
+* Detecta equipo visible como silla, colchoneta o mancuernas
+* Guarda el resultado y lo reutiliza al generar o regenerar rutinas
+
+### Flujo técnico
+
+1. El usuario sube una foto desde la vista de rutina.
+2. El frontend envía la imagen al backend en formato `data:image/...;base64`.
+3. El backend llama a `POST /api/vision/environment/analyze`.
+4. El backend usa Ximilar `photo/tags/v2/tags`.
+5. El resultado se normaliza a equipo útil de entrenamiento.
+6. La imagen se guarda en Supabase Storage privado.
+7. El análisis queda disponible en `GET /api/vision/environment/latest`.
+8. La IA de rutinas usa automáticamente este contexto visual si existe.
+
+### Consideraciones relevantes
+
+* El token de Ximilar se usa solo en backend
+* Las imágenes del entorno se almacenan en bucket privado con signed URLs
+* Para habilitar esta funcionalidad también debes configurar el backend y aplicar la migración `backend/sql/008_environment_vision.sql`
+
+---
+
+## 🍽️ Nueva funcionalidad — Análisis visual de alimentación
+
+Se agregó una sección nueva dentro de `Progress.tsx`.
+
+### ¿Qué hace?
+
+* Permite subir una foto de una comida
+* Envía la imagen al backend para analizarla con Ximilar
+* Detecta grupos visibles como proteína, carbohidratos, vegetales, fruta o grasas
+* Genera una orientación educativa aproximada y una lectura alineada con el objetivo del perfil
+* Guarda el historial reciente de análisis
+
+### Flujo técnico
+
+1. El usuario sube una foto desde la vista de progreso.
+2. El frontend envía la imagen al backend en formato `data:image/...;base64`.
+3. El backend llama a `POST /api/vision/nutrition/analyze`.
+4. El backend usa Ximilar `photo/tags/v2/tags`.
+5. El resultado se normaliza a grupos alimentarios.
+6. La imagen se guarda en Supabase Storage privado.
+7. El análisis queda disponible en:
+   * `GET /api/vision/nutrition/latest`
+   * `GET /api/vision/nutrition/history`
+
+### Consideraciones relevantes
+
+* La lectura es educativa y aproximada
+* No calcula calorías exactas
+* No reemplaza a un nutricionista
+* Requiere aplicar la migración `backend/sql/009_nutrition_vision.sql`
+
+---
+
+## 📸 Nueva funcionalidad — Seguimiento visual del progreso corporal
+
+Se agregó una sección nueva dentro de `Progress.tsx`.
+
+### ¿Qué hace?
+
+* Permite subir fotos periódicas del progreso corporal
+* Genera un resumen visual del registro actual
+* Compara el nuevo registro con el anterior de forma aproximada
+* Guarda historial reciente para seguimiento
+
+### Flujo técnico
+
+1. El usuario sube una foto desde la vista de progreso.
+2. El frontend envía la imagen al backend en formato `data:image/...;base64`.
+3. El backend llama a `POST /api/vision/body-progress/analyze`.
+4. El backend usa Ximilar `photo/tags/v2/tags`.
+5. Si `Person Detection` de Ximilar no está disponible para la cuenta, el backend hace fallback a una inferencia visual basada en tagging genérico.
+6. La imagen se guarda en Supabase Storage privado.
+7. El análisis queda disponible en:
+   * `GET /api/vision/body-progress/latest`
+   * `GET /api/vision/body-progress/history`
+
+### Consideraciones relevantes
+
+* La comparación es orientativa, no clínica
+* Puede verse afectada por luz, ángulo, ropa o postura
+* Requiere aplicar la migración `backend/sql/010_body_progress_vision.sql`
+
+---
+
+## ✅ Pruebas de las 3 funcionalidades
+
+Se dejaron pruebas automáticas para las tres integraciones visuales.
+
+### Pruebas simuladas
+
+Simulan:
+
+* guardado en base de datos
+* guardado en Supabase Storage
+* respuestas de Ximilar por mocks
+
+Ejecutar:
+
+```bash
+cd backend
+npm run test:vision
+```
+
+### Smoke tests reales con Ximilar
+
+Ejecutan llamadas reales a Ximilar usando el token configurado en `backend/.env`.
+
+Ejecutar:
+
+```bash
+cd backend
+$env:RUN_XIMILAR_LIVE_TESTS="true"
+npm run test:vision:live
+```
+
+### Validaciones usadas durante esta implementación
+
+```bash
+cd backend
+npm run typecheck
+npm run build
+npm run test:vision
+
+$env:RUN_XIMILAR_LIVE_TESTS="true"
+npm run test:vision:live
+
+cd ../frontend
+npm run build
+```
 
 ---
 

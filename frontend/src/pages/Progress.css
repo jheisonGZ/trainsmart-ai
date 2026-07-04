@@ -120,6 +120,77 @@
   gap: 10px;
 }
 
+.pg-vision-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pg-upload {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255,74,43,0.35);
+  background: rgba(255,74,43,0.08);
+  color: #fff;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.pg-upload input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.pg-upload span {
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.pg-vision-detail {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.pg-vision-image {
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+}
+
+.pg-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pg-chip-list span {
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.78);
+  padding: 7px 10px;
+  font-size: 0.8rem;
+}
+
+.pg-inline-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
 .pg-btn {
   border: none;
   border-radius: 9px;
@@ -143,6 +214,7 @@
 
 @media (max-width: 900px) {
   .pg-cards { grid-template-columns: 1fr; }
+  .pg-vision-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {

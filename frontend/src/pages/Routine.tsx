@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
   Calendar,
+  Camera,
   CheckCircle2,
   ClipboardList,
   Dumbbell,
@@ -17,6 +18,7 @@ import RoutineAudioPlayer from "../components/RoutineAudioPlayer";
 import { ApiClientError, api, clearApiClientState } from "../lib/api";
 import type {
   AuthMeResponse,
+  EnvironmentAnalysis,
   HealthHistoryRecord,
   ProfileRecord,
   Routine,
@@ -68,6 +70,22 @@ interface DayPreviewMeta {
   label: string;
   note: string;
   tone: DayPreviewTone;
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        reject(new Error("No fue posible leer la imagen seleccionada."));
+        return;
+      }
+
+      resolve(reader.result);
+    };
+    reader.onerror = () => reject(new Error("No fue posible leer la imagen seleccionada."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function getOptionalResource<T>(request: Promise<T>) {
@@ -200,6 +218,8 @@ export default function Routine() {
   const [pendingReview, setPendingReview] = useState<PendingReview | null>(null);
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [recentSessions, setRecentSessions] = useState<WorkoutSession[]>([]);
+  const [environmentAnalysis, setEnvironmentAnalysis] =
+    useState<EnvironmentAnalysis | null>(null);
   const [customInstructions, setCustomInstructions] = useState("");
   const [regenerateReason, setRegenerateReason] = useState("");
   const [effort, setEffort] = useState<"easy" | "moderate" | "hard">("moderate");
@@ -208,6 +228,7 @@ export default function Routine() {
   const [sessionNotes, setSessionNotes] = useState("");
   const [previewDayId, setPreviewDayId] = useState<string | null>(null);
   const [completedBlockCount, setCompletedBlockCount] = useState(0);
+  const [analyzingEnvironment, setAnalyzingEnvironment] = useState(false);
   const isBusy = busyAction !== null;
 
   const readyToGenerate = Boolean(
@@ -283,7 +304,16 @@ export default function Routine() {
   }, [activeDaySession?.id, dayBlocks.length, dayCompleted]);
 
   async function fetchRoutineSnapshot() {
-    const [authMe, profileData, healthData, sessions, dashboard, today, routines] =
+    const [
+      authMe,
+      profileData,
+      healthData,
+      sessions,
+      dashboard,
+      today,
+      routines,
+      environment,
+    ] =
       await Promise.all([
         api.getFresh<AuthMeResponse>("/auth/me"),
         getOptionalResource(api.getFresh<ProfileRecord>("/profiles/me")),
@@ -294,6 +324,7 @@ export default function Routine() {
         ),
         getOptionalResource(api.getFresh<RoutineTodayResponse>("/routines/current/today")),
         api.getFresh<Routine[]>("/routines/me"),
+        api.getFresh<EnvironmentAnalysis | null>("/vision/environment/latest"),
       ]);
 
     let pending: PendingReview | null = null;
@@ -316,6 +347,7 @@ export default function Routine() {
       dashboard,
       today,
       pending,
+      environment,
     };
   }
 
@@ -340,6 +372,7 @@ export default function Routine() {
         setRoutineToday(snapshot.today);
         setPendingReview(snapshot.pending);
         setRecentSessions(snapshot.sessions);
+        setEnvironmentAnalysis(snapshot.environment);
         setActiveSession(
           snapshot.today?.active_session_id
             ? snapshot.sessions.find((session) => session.id === snapshot.today?.active_session_id) ??
@@ -383,6 +416,7 @@ export default function Routine() {
     setRoutineToday(snapshot.today);
     setPendingReview(snapshot.pending);
     setRecentSessions(snapshot.sessions);
+    setEnvironmentAnalysis(snapshot.environment);
     setActiveSession(
       snapshot.today?.active_session_id
         ? snapshot.sessions.find((session) => session.id === snapshot.today?.active_session_id) ??
@@ -417,7 +451,9 @@ export default function Routine() {
       await Alert.fire({
         icon: "success",
         title: "Rutina propuesta",
-        text: result.message,
+        text: environmentAnalysis
+          ? `${result.message} Se tuvo en cuenta tu ultimo analisis visual del entorno.`
+          : result.message,
       });
     });
   };
@@ -443,9 +479,69 @@ export default function Routine() {
       await Alert.fire({
         icon: "success",
         title: "Nueva versión propuesta",
-        text: result.message,
+        text: environmentAnalysis
+          ? `${result.message} La regeneracion considero el entorno detectado en tu foto mas reciente.`
+          : result.message,
       });
     });
+  };
+
+  const handleEnvironmentFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    event.target.value = "";
+
+    if (file.size > 4 * 1024 * 1024) {
+      await Alert.fire({
+        icon: "info",
+        title: "Imagen demasiado grande",
+        text: "Usa una imagen de hasta 4 MB para que el analisis sea estable.",
+      });
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      await Alert.fire({
+        icon: "info",
+        title: "Archivo no compatible",
+        text: "Selecciona una imagen PNG, JPG o WEBP.",
+      });
+      return;
+    }
+
+    setAnalyzingEnvironment(true);
+
+    try {
+      const imageDataUrl = await readFileAsDataUrl(file);
+      const analysis = await api.post<EnvironmentAnalysis>("/vision/environment/analyze", {
+        image_data_url: imageDataUrl,
+        file_name: file.name,
+      });
+
+      setEnvironmentAnalysis(analysis);
+
+      await Alert.fire({
+        icon: "success",
+        title: "Entorno analizado",
+        text: "El equipo detectado ya queda disponible para adaptar tus proximas rutinas.",
+      });
+    } catch (error) {
+      console.error("Failed to analyze environment image", error);
+      await Alert.fire({
+        icon: "error",
+        title: "No se pudo analizar la imagen",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Revisa la imagen seleccionada, tu conexion y la configuracion de Ximilar.",
+      });
+    } finally {
+      setAnalyzingEnvironment(false);
+    }
   };
 
   const handleApprove = async () => {
@@ -664,11 +760,75 @@ export default function Routine() {
             <section className="rt-grid">
               <article className="rt-card">
                 <h2>
+                  <Camera size={16} /> Entorno y equipo disponible
+                </h2>
+                <p>
+                  Sube una foto de tu espacio real para detectar implementos visibles y reutilizar
+                  ese contexto al generar o regenerar tu rutina.
+                </p>
+                <label className="rt-upload">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    onChange={(event) => void handleEnvironmentFileChange(event)}
+                    disabled={analyzingEnvironment}
+                  />
+                  <span>
+                    {analyzingEnvironment ? "Analizando imagen..." : "Subir foto del entorno"}
+                  </span>
+                </label>
+                {environmentAnalysis ? (
+                  <div className="rt-environment">
+                    {environmentAnalysis.source_image_url ? (
+                      <img
+                        className="rt-environment__image"
+                        src={environmentAnalysis.source_image_url}
+                        alt="Ultimo entorno analizado"
+                      />
+                    ) : null}
+                    <p className="rt-environment__summary">{environmentAnalysis.summary}</p>
+                    <div className="rt-day-preview__tags">
+                      {(environmentAnalysis.detected_equipment.length > 0
+                        ? environmentAnalysis.detected_equipment
+                        : ["peso corporal como base"]
+                      ).map((item) => (
+                        <span key={item}>{item}</span>
+                      ))}
+                    </div>
+                    {environmentAnalysis.detected_space_tags.length > 0 ? (
+                      <div className="rt-day-preview__tags">
+                        {environmentAnalysis.detected_space_tags.map((item) => (
+                          <span key={item}>{item}</span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <p className="rt-environment__context">
+                      {environmentAnalysis.training_context}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rt-block-note">
+                    <ClipboardList size={15} />
+                    <span>
+                      Todavia no has subido una foto. Mientras tanto, la rutina se genera sin
+                      contexto visual de equipo.
+                    </span>
+                  </div>
+                )}
+              </article>
+
+              <article className="rt-card">
+                <h2>
                   <Sparkles size={16} /> Generación IA
                 </h2>
                 <p>
                   Puedes enviar instrucciones extra para que la propuesta se adapte a tus preferencias, restricciones y estilo de entrenamiento.
                 </p>
+                {environmentAnalysis ? (
+                  <p className="rt-environment__hint">
+                    El ultimo analisis visual se aplicara automaticamente a la rutina.
+                  </p>
+                ) : null}
                 <textarea
                   className="rt-textarea"
                   value={customInstructions}

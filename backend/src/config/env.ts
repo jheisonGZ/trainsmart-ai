@@ -31,12 +31,21 @@ const envSchema = z.object({
   GROQ_API_KEY: z.string().default(''),
   LLM_MODEL: z.string().min(1).default('llama-3.3-70b-versatile'),
   LLM_BASE_URL: z.string().url().default('https://api.groq.com/openai/v1'),
+  XIMILAR_API_TOKEN: z.string().default(''),
+  XIMILAR_BASE_URL: z.string().url().default('https://api.ximilar.com'),
   ELEVENLABS_API_KEY: z.string().default(''),
   ELEVENLABS_VOICE_ID: z.string().default('JBFqnCBsd6RMkjVDRZzb'),
   ELEVENLABS_MODEL_ID: z.string().min(1).default('eleven_multilingual_v2'),
   ELEVENLABS_OUTPUT_FORMAT: z.string().min(1).default('mp3_44100_128'),
   ELEVENLABS_ENABLED: booleanEnvSchema.default(false),
   SUPABASE_ROUTINE_AUDIO_BUCKET: z.string().min(1).default('routine-audio-private'),
+  SUPABASE_ENVIRONMENT_IMAGES_BUCKET: z.string()
+    .min(1)
+    .default('environment-images-private'),
+  SUPABASE_MEAL_IMAGES_BUCKET: z.string().min(1).default('meal-images-private'),
+  SUPABASE_BODY_PROGRESS_IMAGES_BUCKET: z.string()
+    .min(1)
+    .default('body-progress-images-private'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
 }).superRefine((value, ctx) => {
