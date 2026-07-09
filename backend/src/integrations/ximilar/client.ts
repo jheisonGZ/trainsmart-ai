@@ -18,6 +18,18 @@ interface Base64ImageOptions {
   imageBase64: string;
 }
 
+function normalizeBase64Image(imageBase64: string): string {
+  return imageBase64
+    .trim()
+    .replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+}
+
+function validateBase64Image(imageBase64: string): void {
+  if (imageBase64.trim().length === 0) {
+    throw new XimilarRequestError('Image base64 is empty.');
+  }
+}
+
 async function callXimilar<TSchemaOutput>(options: {
   endpointPath: string;
   body: unknown;
@@ -51,24 +63,48 @@ async function callXimilar<TSchemaOutput>(options: {
       error,
       endpoint,
     });
-    throw new XimilarRequestError('Ximilar request failed or timed out.');
+
+    throw new XimilarRequestError('Ximilar request failed or timed out.', {
+      endpoint,
+      originalError: error instanceof Error ? error.message : String(error),
+    });
   }
 
   if (!response.ok) {
     const errorText = await response.text();
 
     logger.error('Ximilar request failed.', {
+      endpoint,
       status: response.status,
       body: errorText,
     });
 
-    throw new XimilarRequestError(`Ximilar responded with status ${response.status}.`);
+    throw new XimilarRequestError(
+      `Ximilar responded with status ${response.status}.`,
+      {
+        endpoint,
+        ximilarStatus: response.status,
+        ximilarBody: errorText,
+      },
+    );
   }
 
   const payload = (await response.json()) as unknown;
+
+  logger.info('Ximilar raw payload.', {
+    endpoint,
+    payload,
+  });
+
   const parsedPayload = options.responseSchema.safeParse(payload);
 
   if (!parsedPayload.success) {
+    logger.error('Ximilar payload validation failed.', {
+      endpoint,
+      validationError: parsedPayload.error.flatten(),
+      payload,
+    });
+
     throw new XimilarResponseError(
       options.responseErrorMessage,
       parsedPayload.error.flatten(),
@@ -81,6 +117,10 @@ async function callXimilar<TSchemaOutput>(options: {
 export async function analyzeImageTagsWithXimilar({
   imageBase64,
 }: Base64ImageOptions): Promise<XimilarPhotoTaggingResponse> {
+  const normalizedImageBase64 = normalizeBase64Image(imageBase64);
+
+  validateBase64Image(normalizedImageBase64);
+
   return callXimilar({
     endpointPath: '/photo/tags/v2/tags',
     body: {
@@ -88,7 +128,7 @@ export async function analyzeImageTagsWithXimilar({
       tagging_mode: 'complex',
       records: [
         {
-          _base64: imageBase64,
+          _base64: normalizedImageBase64,
         },
       ],
     },
@@ -100,12 +140,16 @@ export async function analyzeImageTagsWithXimilar({
 export async function detectPeopleWithXimilar({
   imageBase64,
 }: Base64ImageOptions): Promise<XimilarPersonDetectionResponse> {
+  const normalizedImageBase64 = normalizeBase64Image(imageBase64);
+
+  validateBase64Image(normalizedImageBase64);
+
   return callXimilar({
     endpointPath: '/identity/v2/person',
     body: {
       records: [
         {
-          _base64: imageBase64,
+          _base64: normalizedImageBase64,
         },
       ],
     },
