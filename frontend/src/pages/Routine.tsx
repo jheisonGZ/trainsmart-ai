@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
@@ -7,14 +7,18 @@ import {
   CheckCircle2,
   ClipboardList,
   Dumbbell,
+  Mic,
+  MicOff,
   PlayCircle,
   RefreshCcw,
   ShieldCheck,
   Sparkles,
+  TimerReset,
 } from "lucide-react";
 
 import RequestStateCard from "../components/RequestStateCard";
 import RoutineAudioPlayer from "../components/RoutineAudioPlayer";
+import { useAuth } from "../context/AuthContext";
 import { ApiClientError, api, clearApiClientState } from "../lib/api";
 import type {
   AuthMeResponse,
@@ -28,6 +32,8 @@ import type {
   RoutineTodayResponse,
   RoutineVersion,
   WorkoutSession,
+  WorkoutSessionDetail,
+  WorkoutSessionExercise,
 } from "../types/api";
 import "./Routine.css";
 
@@ -49,19 +55,13 @@ interface PendingReview {
   version: RoutineVersion;
 }
 
-interface WorkoutBlock {
-  id: string;
-  index: number;
-  title: string;
-  exercises: RoutineDashboardDay["exercises"];
-}
-
 type BusyAction =
   | "generate"
   | "regenerate"
   | "approve"
   | "discard"
   | "start-session"
+  | "complete-series"
   | "finish-session";
 
 type DayPreviewTone = "active" | "available" | "completed" | "next" | "blocked";
@@ -88,6 +88,182 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
+interface SpeechRecognitionResultLike {
+  readonly isFinal: boolean;
+  readonly 0: {
+    readonly transcript: string;
+  };
+}
+
+interface SpeechRecognitionEventLike extends Event {
+  readonly results: ArrayLike<SpeechRecognitionResultLike>;
+  readonly resultIndex?: number;
+}
+
+interface SpeechRecognitionLike extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: Event & { error?: string }) => void) | null;
+  onspeechend: (() => void) | null;
+  onaudioend: (() => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognitionLike;
+}
+
+type InstructionDictationStatus = "idle" | "starting" | "listening" | "stopping" | "error";
+type SpeechAudioContext = "timer" | "session" | "routine";
+
+interface CompletedSeriesRecord {
+  completedAt: string;
+  timerSeconds: number;
+}
+
+interface GuidedSessionProgress {
+  activeExerciseIndex: number;
+  completedSeriesByExercise: Record<string, number>;
+  seriesRecordsByExercise: Record<string, CompletedSeriesRecord[]>;
+}
+
+interface SeriesTimerTarget {
+  exerciseId: string;
+  exerciseName: string;
+  exerciseOrder: number;
+  seriesNumber: number;
+  totalSeries: number;
+  durationSeconds: number;
+}
+
+const VOICE_TIMER_STORAGE_KEY = "ts:voice-timer-enabled";
+const DICTATION_RESTART_DELAY_MS = 600;
+
+function isAudioPlaybackSupported() {
+  return typeof window !== "undefined" && typeof Audio !== "undefined";
+}
+
+function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const browserWindow = window as Window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+
+  return browserWindow.SpeechRecognition ?? browserWindow.webkitSpeechRecognition ?? null;
+}
+
+function formatTimerLabel(totalSeconds: number) {
+  const safeSeconds = Math.max(totalSeconds, 0);
+  const minutes = Math.floor(safeSeconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (safeSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function formatDurationMinutes(totalMinutes: number) {
+  if (totalMinutes <= 1) {
+    return "1 minuto";
+  }
+
+  return `${totalMinutes} minutos`;
+}
+
+function formatLocalIsoDate(date = new Date()) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
+
+function getExerciseSeriesCount(exercise: RoutineDashboardDay["exercises"][number]) {
+  return Math.max(1, exercise.sets || 1);
+}
+
+function getExerciseProgressId(exercise: RoutineDashboardDay["exercises"][number]) {
+  return exercise.id || `${exercise.routine_day_id}-${exercise.exercise_order}`;
+}
+
+function getStartSessionMessage(input: {
+  exerciseCount: number;
+  totalSeries: number;
+  firstExerciseName: string;
+  firstExerciseSets: number;
+}) {
+  return `Excelente. Comienzas una sesión de ${input.exerciseCount} ejercicios y ${input.totalSeries} series. Primer ejercicio: ${input.firstExerciseName}, serie 1 de ${input.firstExerciseSets}. Mantén una técnica controlada.`;
+}
+
+function getStartSeriesMessage(target: SeriesTimerTarget) {
+  return `${target.exerciseName}, serie ${target.seriesNumber} de ${target.totalSeries}. Inicia con control y respeta tu rango de movimiento.`;
+}
+
+function getSeriesCountdownMessage(target: SeriesTimerTarget) {
+  return `Quedan 10 segundos en ${target.exerciseName}, serie ${target.seriesNumber}.`;
+}
+
+function getTimerCompletionMessage(target: SeriesTimerTarget) {
+  return `Buen trabajo. Terminó el conteo de ${target.exerciseName}, serie ${target.seriesNumber}. Puedes finalizar esta serie.`;
+}
+
+function getSeriesCompletedMessage(input: {
+  exerciseName: string;
+  seriesNumber: number;
+  totalSeries: number;
+  restSeconds: number | null;
+}) {
+  const restText =
+    input.restSeconds && input.restSeconds > 0
+      ? ` Descansa ${input.restSeconds} segundos antes de continuar.`
+      : " Descansa lo necesario antes de continuar.";
+
+  return `Serie ${input.seriesNumber} de ${input.totalSeries} completada en ${input.exerciseName}.${restText}`;
+}
+
+function getExerciseCompletedMessage(exerciseName: string, nextExerciseName?: string) {
+  return nextExerciseName
+    ? `Completaste ${exerciseName}. Cuando estés listo, avanza a ${nextExerciseName}.`
+    : `Completaste ${exerciseName}. Ya puedes registrar el cierre de la sesión.`;
+}
+
+function getNextExerciseMotivation(nextExerciseName: string, totalSeries: number) {
+  return `Ahora continúa con ${nextExerciseName}, serie 1 de ${totalSeries}. Mantén el ritmo y cuida la técnica.`;
+}
+
+function buildFinalSummaryMessage(input: {
+  dayLabel: string;
+  exerciseCount: number;
+  totalSeries: number;
+  effort: "easy" | "moderate" | "hard";
+  startedAt: string | null;
+}) {
+  const startedAt = input.startedAt ? new Date(input.startedAt) : null;
+  const elapsedMinutes =
+    startedAt && !Number.isNaN(startedAt.getTime())
+      ? Math.max(1, Math.round((Date.now() - startedAt.getTime()) / 60000))
+      : null;
+
+  const effortLabel =
+    input.effort === "easy"
+      ? "fácil"
+      : input.effort === "moderate"
+        ? "moderado"
+        : "intenso";
+
+  const durationText = elapsedMinutes
+    ? ` en ${formatDurationMinutes(elapsedMinutes)}`
+    : "";
+
+  return `Has completado ${input.dayLabel}${durationText} con éxito. Cerraste ${input.exerciseCount} ejercicios y ${input.totalSeries} series, con esfuerzo ${effortLabel}. Excelente trabajo.`;
+}
+
 function getOptionalResource<T>(request: Promise<T>) {
   return request.catch((error) => {
     if (error instanceof ApiClientError && error.status === 404) {
@@ -98,45 +274,162 @@ function getOptionalResource<T>(request: Promise<T>) {
   });
 }
 
-function buildWorkoutBlocks(day: RoutineDashboardDay | null): WorkoutBlock[] {
-  if (!day || day.exercises.length === 0) {
-    return [];
+function getGuidedProgressStorageKey(sessionId: string) {
+  return `routine-guided-progress:${sessionId}`;
+}
+
+function getEmptyGuidedProgress(): GuidedSessionProgress {
+  return {
+    activeExerciseIndex: 0,
+    completedSeriesByExercise: {},
+    seriesRecordsByExercise: {},
+  };
+}
+
+function getTotalSeriesCount(exercises: RoutineDashboardDay["exercises"]) {
+  return exercises.reduce((total, exercise) => total + getExerciseSeriesCount(exercise), 0);
+}
+
+function getCompletedSeriesCount(
+  progress: GuidedSessionProgress,
+  exercise: RoutineDashboardDay["exercises"][number],
+) {
+  const exerciseId = getExerciseProgressId(exercise);
+  return Math.min(
+    progress.completedSeriesByExercise[exerciseId] ?? 0,
+    getExerciseSeriesCount(exercise),
+  );
+}
+
+function getCompletedTotalSeries(
+  exercises: RoutineDashboardDay["exercises"],
+  progress: GuidedSessionProgress,
+) {
+  return exercises.reduce(
+    (total, exercise) => total + getCompletedSeriesCount(progress, exercise),
+    0,
+  );
+}
+
+function getFirstPendingExerciseIndex(
+  exercises: RoutineDashboardDay["exercises"],
+  progress: GuidedSessionProgress,
+) {
+  const pendingIndex = exercises.findIndex(
+    (exercise) => getCompletedSeriesCount(progress, exercise) < getExerciseSeriesCount(exercise),
+  );
+
+  return pendingIndex >= 0 ? pendingIndex : Math.max(exercises.length - 1, 0);
+}
+
+function normalizeGuidedProgress(
+  progress: GuidedSessionProgress,
+  exercises: RoutineDashboardDay["exercises"],
+): GuidedSessionProgress {
+  const normalized = getEmptyGuidedProgress();
+
+  exercises.forEach((exercise) => {
+    const exerciseId = getExerciseProgressId(exercise);
+    const completed = Math.min(
+      Math.max(progress.completedSeriesByExercise[exerciseId] ?? 0, 0),
+      getExerciseSeriesCount(exercise),
+    );
+    const records = progress.seriesRecordsByExercise[exerciseId] ?? [];
+
+    normalized.completedSeriesByExercise[exerciseId] = completed;
+    normalized.seriesRecordsByExercise[exerciseId] = records.slice(0, completed);
+  });
+
+  const maxIndex = Math.max(exercises.length - 1, 0);
+  normalized.activeExerciseIndex = Math.min(
+    Math.max(progress.activeExerciseIndex ?? getFirstPendingExerciseIndex(exercises, normalized), 0),
+    maxIndex,
+  );
+
+  return normalized;
+}
+
+function readGuidedProgress(
+  sessionId: string,
+  exercises: RoutineDashboardDay["exercises"],
+) {
+  try {
+    const stored = window.localStorage.getItem(getGuidedProgressStorageKey(sessionId));
+
+    if (!stored) {
+      return normalizeGuidedProgress(getEmptyGuidedProgress(), exercises);
+    }
+
+    return normalizeGuidedProgress(JSON.parse(stored) as GuidedSessionProgress, exercises);
+  } catch {
+    return normalizeGuidedProgress(getEmptyGuidedProgress(), exercises);
+  }
+}
+
+function writeGuidedProgress(sessionId: string, progress: GuidedSessionProgress) {
+  window.localStorage.setItem(getGuidedProgressStorageKey(sessionId), JSON.stringify(progress));
+}
+
+function clearGuidedProgress(sessionId: string) {
+  window.localStorage.removeItem(getGuidedProgressStorageKey(sessionId));
+}
+
+function mergeSessionExerciseProgress(
+  progress: GuidedSessionProgress,
+  sessionExercises: WorkoutSessionExercise[],
+  exercises: RoutineDashboardDay["exercises"],
+) {
+  const nextProgress = normalizeGuidedProgress(progress, exercises);
+  const sessionExerciseByOrder = new Map(
+    sessionExercises.map((exercise) => [exercise.exercise_order, exercise]),
+  );
+
+  exercises.forEach((exercise) => {
+    const persistedExercise = sessionExerciseByOrder.get(exercise.exercise_order);
+    const exerciseId = getExerciseProgressId(exercise);
+    const persistedSets = persistedExercise?.performed_sets ?? 0;
+    const completed = Math.min(
+      Math.max(nextProgress.completedSeriesByExercise[exerciseId] ?? 0, persistedSets),
+      getExerciseSeriesCount(exercise),
+    );
+
+    nextProgress.completedSeriesByExercise[exerciseId] = completed;
+    nextProgress.seriesRecordsByExercise[exerciseId] =
+      nextProgress.seriesRecordsByExercise[exerciseId]?.slice(0, completed) ?? [];
+  });
+
+  nextProgress.activeExerciseIndex = Math.min(
+    nextProgress.activeExerciseIndex,
+    Math.max(exercises.length - 1, 0),
+  );
+
+  if (
+    exercises[nextProgress.activeExerciseIndex] &&
+    getCompletedSeriesCount(nextProgress, exercises[nextProgress.activeExerciseIndex]) >=
+      getExerciseSeriesCount(exercises[nextProgress.activeExerciseIndex])
+  ) {
+    nextProgress.activeExerciseIndex = getFirstPendingExerciseIndex(exercises, nextProgress);
   }
 
-  const blockCount =
-    day.exercises.length >= 8 ? 3 : day.exercises.length >= 4 ? 2 : 1;
-  const blockSize = Math.ceil(day.exercises.length / blockCount);
-
-  return Array.from({ length: blockCount }, (_, index) => {
-    const exercises = day.exercises.slice(index * blockSize, (index + 1) * blockSize);
-    const title =
-      blockCount === 1 ? "Sesión del día" : `Sesión ${index + 1}`;
-
-    return {
-      id: `${day.id}-block-${index + 1}`,
-      index: index + 1,
-      title,
-      exercises,
-    };
-  }).filter((block) => block.exercises.length > 0);
+  return nextProgress;
 }
 
-function getBlockProgressStorageKey(sessionId: string) {
-  return `routine-progress:${sessionId}`;
-}
+function buildSessionProgressNotes(
+  userNotes: string,
+  exercises: RoutineDashboardDay["exercises"],
+  progress: GuidedSessionProgress,
+) {
+  const progressSummary = exercises
+    .map((exercise) => {
+      const completed = getCompletedSeriesCount(progress, exercise);
+      return `${exercise.exercise_name}: ${completed}/${getExerciseSeriesCount(exercise)} series`;
+    })
+    .join('; ');
 
-function readCompletedBlocks(sessionId: string) {
-  const stored = window.localStorage.getItem(getBlockProgressStorageKey(sessionId));
-  const parsed = Number(stored);
-  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
-}
-
-function writeCompletedBlocks(sessionId: string, count: number) {
-  window.localStorage.setItem(getBlockProgressStorageKey(sessionId), String(count));
-}
-
-function clearCompletedBlocks(sessionId: string) {
-  window.localStorage.removeItem(getBlockProgressStorageKey(sessionId));
+  return [userNotes.trim(), `Progreso guiado: ${progressSummary}`]
+    .filter(Boolean)
+    .join('\n\n')
+    .slice(0, 1000);
 }
 
 function getCompletedDayIds(sessions: WorkoutSession[]) {
@@ -167,7 +460,7 @@ function getDayPreviewMeta(
   if (day.id === currentDayId && activeDaySession) {
     return {
       label: "En curso",
-      note: "Ya comenzaste este día y estás avanzando por sus sesiones internas.",
+      note: "Ya comenzaste este día y estás avanzando por ejercicios y series.",
       tone: "active",
     };
   }
@@ -205,6 +498,7 @@ function getDayPreviewMeta(
 
 export default function Routine() {
   const navigate = useNavigate();
+  const { getSupabaseAccessToken } = useAuth();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -227,8 +521,34 @@ export default function Routine() {
   const [painOrDiscomfort, setPainOrDiscomfort] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
   const [previewDayId, setPreviewDayId] = useState<string | null>(null);
-  const [completedBlockCount, setCompletedBlockCount] = useState(0);
   const [analyzingEnvironment, setAnalyzingEnvironment] = useState(false);
+  const [guidedProgress, setGuidedProgress] =
+    useState<GuidedSessionProgress>(() => getEmptyGuidedProgress());
+  const [voiceTimerEnabled, setVoiceTimerEnabled] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    return window.localStorage.getItem(VOICE_TIMER_STORAGE_KEY) !== "false";
+  });
+  const [timerSeconds, setTimerSeconds] = useState(30);
+  const [timerRemaining, setTimerRemaining] = useState(30);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerTarget, setTimerTarget] = useState<SeriesTimerTarget | null>(null);
+  const [instructionDictationStatus, setInstructionDictationStatus] =
+    useState<InstructionDictationStatus>("idle");
+  const [instructionTranscriptError, setInstructionTranscriptError] = useState<string | null>(null);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const timerIntervalRef = useRef<number | null>(null);
+  const spokenTimerMarksRef = useRef<Set<number>>(new Set());
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recognitionStopRequestedRef = useRef(false);
+  const recognitionHadErrorRef = useRef(false);
+  const recognitionKeepAliveRef = useRef(false);
+  const recognitionRestartTimeoutRef = useRef<number | null>(null);
+  const instructionMicStreamRef = useRef<MediaStream | null>(null);
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const voiceAudioCacheRef = useRef<Map<string, string>>(new Map());
   const isBusy = busyAction !== null;
 
   const readyToGenerate = Boolean(
@@ -237,8 +557,11 @@ export default function Routine() {
       authState.health_completed,
   );
 
-  const dayBlocks = useMemo(
-    () => buildWorkoutBlocks(routineToday?.today ?? null),
+  const dayExercises = useMemo(
+    () =>
+      routineToday?.today.exercises
+        .slice()
+        .sort((left, right) => left.exercise_order - right.exercise_order) ?? [],
     [routineToday?.today],
   );
   const completedDayIds = useMemo(
@@ -254,10 +577,39 @@ export default function Routine() {
       (routineToday.today_status === "completed" ||
         completedDayIds.has(routineToday.today.id)),
   );
-  const currentBlock =
-    activeDaySession && !dayCompleted && dayBlocks.length > 0
-      ? dayBlocks[Math.min(completedBlockCount, dayBlocks.length - 1)]
+  const activeExerciseIndex = Math.min(
+    guidedProgress.activeExerciseIndex,
+    Math.max(dayExercises.length - 1, 0),
+  );
+  const currentExercise =
+    activeDaySession && !dayCompleted && dayExercises.length > 0
+      ? dayExercises[activeExerciseIndex]
       : null;
+  const currentExerciseCompletedSeries = currentExercise
+    ? getCompletedSeriesCount(guidedProgress, currentExercise)
+    : 0;
+  const currentExerciseTotalSeries = currentExercise
+    ? getExerciseSeriesCount(currentExercise)
+    : 0;
+  const currentSeriesNumber = currentExercise
+    ? Math.min(currentExerciseCompletedSeries + 1, currentExerciseTotalSeries)
+    : 0;
+  const currentExerciseCompleted =
+    Boolean(currentExercise) && currentExerciseCompletedSeries >= currentExerciseTotalSeries;
+  const completedTotalSeries = getCompletedTotalSeries(dayExercises, guidedProgress);
+  const totalSeriesCount = getTotalSeriesCount(dayExercises);
+  const allSeriesCompleted =
+    dayExercises.length > 0 && totalSeriesCount > 0 && completedTotalSeries >= totalSeriesCount;
+  const hasNextExercise =
+    Boolean(currentExercise) && activeExerciseIndex < dayExercises.length - 1;
+  const nextExercise = hasNextExercise ? dayExercises[activeExerciseIndex + 1] : null;
+  const timerMatchesCurrentSeries =
+    Boolean(
+      currentExercise &&
+        timerTarget &&
+        timerTarget.exerciseId === getExerciseProgressId(currentExercise) &&
+        timerTarget.seriesNumber === currentSeriesNumber,
+    );
   const previewDay =
     routineDashboard?.days.find((day) => day.id === previewDayId) ??
     routineToday?.today ??
@@ -272,6 +624,98 @@ export default function Routine() {
           completedDayIds,
         )
       : null;
+  const speechRecognitionSupported = Boolean(getSpeechRecognitionConstructor());
+  const isListeningToInstructions =
+    instructionDictationStatus === "starting" ||
+    instructionDictationStatus === "listening" ||
+    instructionDictationStatus === "stopping";
+  const dictationButtonLabel =
+    instructionDictationStatus === "starting"
+      ? "Iniciando dictado..."
+      : instructionDictationStatus === "stopping"
+        ? "Deteniendo..."
+        : isListeningToInstructions
+          ? "Detener dictado"
+          : "Dictar instrucciones";
+  const dictationHint =
+    instructionDictationStatus === "starting"
+      ? "Solicitando acceso al microfono..."
+      : instructionDictationStatus === "listening"
+        ? "Escuchando. Presiona detener cuando termines de hablar."
+        : instructionDictationStatus === "stopping"
+          ? "Cerrando el dictado..."
+          : speechRecognitionSupported
+            ? "Habla para completar tus instrucciones sin escribir."
+            : "Dictado disponible en navegadores compatibles como Chrome o Edge.";
+  const suggestedTimerSeconds = useMemo(() => {
+    if (!currentExercise) {
+      return 30;
+    }
+
+    return currentExercise.rest_seconds && currentExercise.rest_seconds > 0
+      ? currentExercise.rest_seconds
+      : 30;
+  }, [currentExercise]);
+
+  const playElevenLabsSpeech = useCallback(
+    async (text: string, context: SpeechAudioContext) => {
+      if (!voiceTimerEnabled || !isAudioPlaybackSupported()) {
+        return;
+      }
+
+      const normalizedText = text.trim();
+
+      if (!normalizedText) {
+        return;
+      }
+
+      const cacheKey = `${context}:${normalizedText}`;
+
+      try {
+        let audioUrl = voiceAudioCacheRef.current.get(cacheKey);
+
+        if (!audioUrl) {
+          const token = await getSupabaseAccessToken();
+
+          if (!token) {
+            return;
+          }
+
+          const response = await fetch('/api/greetings/speech-audio', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              text: normalizedText,
+              context,
+            }),
+          });
+
+          if (!response.ok) {
+            console.warn('Failed to generate ElevenLabs routine voice audio', {
+              status: response.status,
+              context,
+            });
+            return;
+          }
+
+          const audioBlob = await response.blob();
+          audioUrl = URL.createObjectURL(audioBlob);
+          voiceAudioCacheRef.current.set(cacheKey, audioUrl);
+        }
+
+        voiceAudioRef.current?.pause();
+        const audio = new Audio(audioUrl);
+        voiceAudioRef.current = audio;
+        await audio.play();
+      } catch (error) {
+        console.warn('Could not play ElevenLabs routine voice audio', error);
+      }
+    },
+    [getSupabaseAccessToken, voiceTimerEnabled],
+  );
 
   useEffect(() => {
     if (!routineToday) {
@@ -286,34 +730,132 @@ export default function Routine() {
 
       return routineToday.today.id;
     });
-  }, [routineDashboard?.days, routineToday?.today.id]);
+  }, [routineDashboard?.days, routineToday]);
 
   useEffect(() => {
     if (dayCompleted) {
-      setCompletedBlockCount(dayBlocks.length);
+      setGuidedProgress((current) => normalizeGuidedProgress(current, dayExercises));
       return;
     }
 
     if (!activeDaySession) {
-      setCompletedBlockCount(0);
+      setGuidedProgress(getEmptyGuidedProgress());
       return;
     }
 
-    const storedCount = readCompletedBlocks(activeDaySession.id);
-    setCompletedBlockCount(Math.min(storedCount, Math.max(dayBlocks.length - 1, 0)));
-  }, [activeDaySession?.id, dayBlocks.length, dayCompleted]);
+    const storedProgress = readGuidedProgress(activeDaySession.id, dayExercises);
+    setGuidedProgress(storedProgress);
+
+    let cancelled = false;
+
+    api
+      .get<WorkoutSessionDetail>(`/sessions/${activeDaySession.id}`, { cacheTtlMs: false })
+      .then((sessionDetail) => {
+        if (cancelled) {
+          return;
+        }
+
+        const mergedProgress = mergeSessionExerciseProgress(
+          storedProgress,
+          sessionDetail.exercises,
+          dayExercises,
+        );
+        setGuidedProgress(mergedProgress);
+        writeGuidedProgress(activeDaySession.id, mergedProgress);
+      })
+      .catch((error) => {
+        console.warn("Could not hydrate guided session progress", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDaySession, dayCompleted, dayExercises]);
+
+  useEffect(() => {
+    setTimerRunning(false);
+    setTimerTarget(null);
+    setTimerSeconds(suggestedTimerSeconds);
+    setTimerRemaining(suggestedTimerSeconds);
+    spokenTimerMarksRef.current.clear();
+  }, [activeDaySession?.id, currentExercise?.id, currentSeriesNumber, suggestedTimerSeconds]);
+
+  useEffect(() => {
+    if (!timerRunning) {
+      if (timerIntervalRef.current !== null) {
+        window.clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      return;
+    }
+
+    timerIntervalRef.current = window.setInterval(() => {
+      setTimerRemaining((current) => {
+        if (current <= 1) {
+          window.clearInterval(timerIntervalRef.current ?? undefined);
+          timerIntervalRef.current = null;
+          setTimerRunning(false);
+          return 0;
+        }
+
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerIntervalRef.current !== null) {
+        window.clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
+  }, [timerRunning]);
+
+  useEffect(() => {
+    if (!voiceTimerEnabled || !isAudioPlaybackSupported() || !timerTarget) {
+      return;
+    }
+
+    if (
+      timerRunning &&
+      timerTarget.durationSeconds > 10 &&
+      timerRemaining === 10 &&
+      !spokenTimerMarksRef.current.has(10)
+    ) {
+      void playElevenLabsSpeech(getSeriesCountdownMessage(timerTarget), "timer");
+      spokenTimerMarksRef.current.add(10);
+      return;
+    }
+
+    if (timerRemaining === 0 && !spokenTimerMarksRef.current.has(0)) {
+      void playElevenLabsSpeech(getTimerCompletionMessage(timerTarget), "timer");
+      spokenTimerMarksRef.current.add(0);
+    }
+  }, [playElevenLabsSpeech, timerRemaining, timerRunning, timerTarget, voiceTimerEnabled]);
+
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current !== null) {
+        window.clearInterval(timerIntervalRef.current);
+      }
+
+      if (recognitionRestartTimeoutRef.current !== null) {
+        window.clearTimeout(recognitionRestartTimeoutRef.current);
+      }
+
+      recognitionStopRequestedRef.current = true;
+      recognitionKeepAliveRef.current = false;
+      recognitionRef.current?.abort();
+      instructionMicStreamRef.current?.getTracks().forEach((track) => track.stop());
+      instructionMicStreamRef.current = null;
+
+      voiceAudioRef.current?.pause();
+      voiceAudioCacheRef.current.forEach((audioUrl) => URL.revokeObjectURL(audioUrl));
+      voiceAudioCacheRef.current.clear();
+    };
+  }, []);
 
   async function fetchRoutineSnapshot() {
-    const [
-      authMe,
-      profileData,
-      healthData,
-      sessions,
-      dashboard,
-      today,
-      routines,
-      environment,
-    ] =
+    const [authMe, profileData, healthData, sessions, dashboard, today, routines, environment] =
       await Promise.all([
         api.getFresh<AuthMeResponse>("/auth/me"),
         getOptionalResource(api.getFresh<ProfileRecord>("/profiles/me")),
@@ -439,6 +981,277 @@ export default function Routine() {
     }
   };
 
+  const stopInstructionMicCapture = () => {
+    instructionMicStreamRef.current?.getTracks().forEach((track) => track.stop());
+    instructionMicStreamRef.current = null;
+  };
+
+  const requestInstructionMicCapture = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Tu navegador no permite solicitar acceso al microfono desde esta pagina.");
+    }
+
+    stopInstructionMicCapture();
+    instructionMicStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+  };
+
+  const handleToggleInstructionDictation = async () => {
+    if (isListeningToInstructions) {
+      recognitionStopRequestedRef.current = true;
+      recognitionKeepAliveRef.current = false;
+      setInstructionDictationStatus("stopping");
+      recognitionRef.current?.stop();
+      stopInstructionMicCapture();
+      return;
+    }
+
+    const SpeechRecognitionApi = getSpeechRecognitionConstructor();
+
+    if (!SpeechRecognitionApi) {
+      setInstructionTranscriptError(
+        "Tu navegador no soporta dictado por voz. Usa Chrome o Edge para habilitarlo.",
+      );
+      setInstructionDictationStatus("error");
+      return;
+    }
+
+    if (recognitionRestartTimeoutRef.current !== null) {
+      window.clearTimeout(recognitionRestartTimeoutRef.current);
+      recognitionRestartTimeoutRef.current = null;
+    }
+
+    setInstructionTranscriptError(null);
+    setLiveTranscript("");
+    setInstructionDictationStatus("starting");
+
+    try {
+      await requestInstructionMicCapture();
+    } catch (error) {
+      setInstructionDictationStatus("error");
+      setInstructionTranscriptError(
+        error instanceof Error && error.name === "NotAllowedError"
+          ? "El navegador bloqueo el microfono. Permite el acceso en la barra de direcciones e intenta de nuevo."
+          : error instanceof Error && error.name === "NotFoundError"
+            ? "No encontramos un microfono disponible para iniciar el dictado."
+            : error instanceof Error
+              ? error.message
+              : "No fue posible acceder al microfono para iniciar el dictado.",
+      );
+      return;
+    }
+
+    const recognition = new SpeechRecognitionApi();
+    recognition.lang = "es-CO";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => {
+      setInstructionDictationStatus("listening");
+      setInstructionTranscriptError(null);
+    };
+
+    recognition.onresult = (event) => {
+      let finalText = "";
+      let interimText = "";
+      const startIndex = event.resultIndex ?? 0;
+
+      for (let index = startIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const transcript = result[0]?.transcript?.trim() ?? "";
+
+        if (!transcript) {
+          continue;
+        }
+
+        if (result.isFinal) {
+          finalText += `${transcript} `;
+        } else {
+          interimText += `${transcript} `;
+        }
+      }
+
+      setLiveTranscript(interimText.trim());
+
+      if (finalText.trim()) {
+        setCustomInstructions((current) =>
+          `${current.trim()} ${finalText.trim()}`.trim(),
+        );
+      }
+    };
+
+    recognition.onerror = (event) => {
+      const errorCode = event.error ?? "unknown";
+
+      if (errorCode === "no-speech" && recognitionKeepAliveRef.current) {
+        setInstructionTranscriptError(null);
+        setLiveTranscript("");
+        return;
+      }
+
+      if (errorCode === "aborted" && recognitionStopRequestedRef.current) {
+        return;
+      }
+
+      recognitionHadErrorRef.current = true;
+      recognitionKeepAliveRef.current = false;
+
+      const errorMessage =
+        errorCode === "not-allowed"
+          ? "El navegador bloqueo el microfono. Debes permitir acceso para usar el dictado."
+          : errorCode === "service-not-allowed"
+            ? "El servicio de reconocimiento de voz no esta permitido en este navegador o dominio."
+            : errorCode === "audio-capture"
+              ? "No pudimos acceder al microfono. Revisa que este conectado y disponible."
+              : errorCode === "network"
+                ? "El dictado necesita conexion con el servicio de reconocimiento de voz. Revisa tu red e intenta de nuevo."
+                : "No fue posible completar la transcripcion por voz en este momento.";
+
+      setInstructionTranscriptError(errorMessage);
+      setLiveTranscript("");
+      setInstructionDictationStatus("error");
+      stopInstructionMicCapture();
+    };
+
+    recognition.onspeechend = () => {
+      setLiveTranscript("");
+    };
+
+    recognition.onaudioend = () => {
+      setLiveTranscript("");
+    };
+
+    recognition.onend = () => {
+      const shouldRestart =
+        recognitionKeepAliveRef.current &&
+        !recognitionStopRequestedRef.current &&
+        !recognitionHadErrorRef.current;
+
+      if (shouldRestart) {
+        recognitionRestartTimeoutRef.current = window.setTimeout(() => {
+          recognitionRestartTimeoutRef.current = null;
+
+          if (!recognitionKeepAliveRef.current || recognitionStopRequestedRef.current) {
+            return;
+          }
+
+          try {
+            recognition.start();
+            setInstructionDictationStatus("starting");
+          } catch {
+            recognitionHadErrorRef.current = true;
+            recognitionKeepAliveRef.current = false;
+            setInstructionDictationStatus("error");
+            setInstructionTranscriptError(
+              "El navegador cerro el dictado antes de tiempo. Presiona el boton para intentarlo de nuevo.",
+            );
+            setLiveTranscript("");
+            recognitionRef.current = null;
+            stopInstructionMicCapture();
+          }
+        }, DICTATION_RESTART_DELAY_MS);
+        return;
+      }
+
+      if (!recognitionHadErrorRef.current && !recognitionStopRequestedRef.current) {
+        setInstructionTranscriptError(
+          "El dictado termino porque el navegador dejo de recibir audio. Puedes iniciarlo de nuevo para continuar.",
+        );
+      }
+
+      setInstructionDictationStatus(recognitionHadErrorRef.current ? "error" : "idle");
+      setLiveTranscript("");
+      recognitionRef.current = null;
+      stopInstructionMicCapture();
+    };
+
+    recognitionStopRequestedRef.current = false;
+    recognitionHadErrorRef.current = false;
+    recognitionKeepAliveRef.current = true;
+    setInstructionTranscriptError(null);
+    setLiveTranscript("");
+    setInstructionDictationStatus("starting");
+    recognitionRef.current = recognition;
+
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      recognitionHadErrorRef.current = true;
+      recognitionKeepAliveRef.current = false;
+      setInstructionDictationStatus("error");
+      setInstructionTranscriptError(
+        "No fue posible iniciar el dictado. Revisa permisos de microfono e intenta nuevamente.",
+      );
+      stopInstructionMicCapture();
+    }
+  };
+  const handleToggleVoiceTimer = () => {
+    const nextValue = !voiceTimerEnabled;
+    setVoiceTimerEnabled(nextValue);
+    window.localStorage.setItem(VOICE_TIMER_STORAGE_KEY, String(nextValue));
+
+    if (!nextValue) {
+      voiceAudioRef.current?.pause();
+    }
+  };
+
+  const handleTimerInputChange = (value: string) => {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+      setTimerSeconds(0);
+      setTimerRemaining(0);
+      return;
+    }
+
+    const nextValue = Math.max(0, Math.min(600, Math.round(parsed)));
+    setTimerSeconds(nextValue);
+    setTimerRemaining(nextValue);
+    setTimerRunning(false);
+    setTimerTarget(null);
+    spokenTimerMarksRef.current.clear();
+  };
+
+  const handleStartTimer = () => {
+    if (!currentExercise || currentExerciseCompleted || timerSeconds <= 0) {
+      return;
+    }
+
+    const nextTimerTarget: SeriesTimerTarget = {
+      exerciseId: getExerciseProgressId(currentExercise),
+      exerciseName: currentExercise.exercise_name,
+      exerciseOrder: currentExercise.exercise_order,
+      seriesNumber: currentSeriesNumber,
+      totalSeries: currentExerciseTotalSeries,
+      durationSeconds: timerSeconds,
+    };
+
+    setTimerTarget(nextTimerTarget);
+    spokenTimerMarksRef.current.clear();
+    setTimerRemaining(timerSeconds);
+    setTimerRunning(true);
+
+    if (voiceTimerEnabled) {
+      void playElevenLabsSpeech(`3, 2, 1, comienza. ${getStartSeriesMessage(nextTimerTarget)}`, "timer");
+    }
+  };
+
+  const handlePauseTimer = () => {
+    setTimerRunning(false);
+
+    voiceAudioRef.current?.pause();
+  };
+
+  const handleResetTimer = () => {
+    setTimerRunning(false);
+    setTimerSeconds(suggestedTimerSeconds);
+    setTimerRemaining(suggestedTimerSeconds);
+    setTimerTarget(null);
+    spokenTimerMarksRef.current.clear();
+
+    voiceAudioRef.current?.pause();
+  };
+
   const handleGenerate = async () => {
     await withBusyState("generate", async () => {
       const result = await api.post<RoutineMutationResponse>("/routines/generate", {
@@ -486,7 +1299,9 @@ export default function Routine() {
     });
   };
 
-  const handleEnvironmentFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleEnvironmentFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -577,7 +1392,7 @@ export default function Routine() {
   };
 
   const handleStartSession = async () => {
-    if (!routineToday) {
+    if (!routineToday || dayExercises.length === 0) {
       return;
     }
 
@@ -605,7 +1420,7 @@ export default function Routine() {
 
     await withBusyState("start-session", async () => {
       const session = await api.post<WorkoutSession>("/sessions", {
-        session_date: new Date().toISOString().slice(0, 10),
+        session_date: formatLocalIsoDate(),
         routine_version_id: routineToday.version.id,
         routine_day_id: routineToday.today.id,
         notes: "",
@@ -613,68 +1428,207 @@ export default function Routine() {
 
       setActiveSession(session);
       setRecentSessions((current) => [session, ...current].slice(0, 10));
-      setCompletedBlockCount(0);
-      writeCompletedBlocks(session.id, 0);
+      const initialProgress = normalizeGuidedProgress(getEmptyGuidedProgress(), dayExercises);
+      setGuidedProgress(initialProgress);
+      writeGuidedProgress(session.id, initialProgress);
+
+      if (voiceTimerEnabled) {
+        void playElevenLabsSpeech(
+          getStartSessionMessage({
+            exerciseCount: dayExercises.length,
+            totalSeries: totalSeriesCount,
+            firstExerciseName: dayExercises[0].exercise_name,
+            firstExerciseSets: getExerciseSeriesCount(dayExercises[0]),
+          }),
+          "session",
+        );
+      }
 
       await Alert.fire({
         icon: "success",
         title: "Entrenamiento iniciado",
-        text:
-          dayBlocks.length > 1
-            ? `Comenzaste la sesión 1 de ${dayBlocks.length} para hoy.`
-            : "Ya puedes registrar tu entrenamiento de hoy.",
+        text: `Primer ejercicio: ${dayExercises[0].exercise_name}. Serie 1 de ${getExerciseSeriesCount(dayExercises[0])}.`,
       });
     });
   };
 
-  const handleAdvanceSession = async () => {
-    if (!activeDaySession || !currentBlock) {
+  const handleCompleteCurrentSeries = async () => {
+    if (
+      !activeDaySession ||
+      !currentExercise ||
+      !timerTarget ||
+      !timerMatchesCurrentSeries ||
+      timerRemaining !== 0
+    ) {
+      return;
+    }
+
+    try {
+      await withBusyState("complete-series", async () => {
+        const exerciseId = getExerciseProgressId(currentExercise);
+        const previousCompleted = getCompletedSeriesCount(guidedProgress, currentExercise);
+        const nextCompleted = Math.min(previousCompleted + 1, currentExerciseTotalSeries);
+        const nextRecords = [
+          ...(guidedProgress.seriesRecordsByExercise[exerciseId] ?? []),
+          {
+            completedAt: new Date().toISOString(),
+            timerSeconds: timerTarget.durationSeconds,
+          },
+        ].slice(0, nextCompleted);
+        const nextProgress = normalizeGuidedProgress(
+          {
+            ...guidedProgress,
+            completedSeriesByExercise: {
+              ...guidedProgress.completedSeriesByExercise,
+              [exerciseId]: nextCompleted,
+            },
+            seriesRecordsByExercise: {
+              ...guidedProgress.seriesRecordsByExercise,
+              [exerciseId]: nextRecords,
+            },
+          },
+          dayExercises,
+        );
+
+        await api.put<WorkoutSessionExercise>(
+          `/sessions/${activeDaySession.id}/exercises/${currentExercise.exercise_order}/progress`,
+          {
+            performed_sets: nextCompleted,
+            performed_reps: currentExercise.reps,
+            rest_seconds: currentExercise.rest_seconds ?? null,
+          },
+        );
+
+        setGuidedProgress(nextProgress);
+        writeGuidedProgress(activeDaySession.id, nextProgress);
+        setTimerRunning(false);
+        setTimerTarget(null);
+        setTimerSeconds(suggestedTimerSeconds);
+        setTimerRemaining(suggestedTimerSeconds);
+        spokenTimerMarksRef.current.clear();
+
+        const exerciseNowCompleted = nextCompleted >= currentExerciseTotalSeries;
+        const allCompletedAfterThis =
+          getCompletedTotalSeries(dayExercises, nextProgress) >= totalSeriesCount;
+
+        if (voiceTimerEnabled) {
+          if (exerciseNowCompleted) {
+            void playElevenLabsSpeech(
+              getExerciseCompletedMessage(currentExercise.exercise_name, nextExercise?.exercise_name),
+              "session",
+            );
+          } else {
+            void playElevenLabsSpeech(
+              getSeriesCompletedMessage({
+                exerciseName: currentExercise.exercise_name,
+                seriesNumber: nextCompleted,
+                totalSeries: currentExerciseTotalSeries,
+                restSeconds: currentExercise.rest_seconds,
+              }),
+              "session",
+            );
+          }
+        }
+
+        await Alert.fire({
+          icon: "success",
+          title: `Serie ${nextCompleted} completada`,
+          text: allCompletedAfterThis
+            ? "Todas las series de la sesión quedaron completadas. Registra el cierre final."
+            : exerciseNowCompleted
+              ? `Completaste ${currentExercise.exercise_name}. Avanza al siguiente ejercicio cuando estés listo.`
+              : `Continúa con la serie ${nextCompleted + 1} de ${currentExerciseTotalSeries}.`,
+        });
+      });
+    } catch (error) {
+      console.error("Failed to complete guided workout series", error);
+      await Alert.fire({
+        icon: "error",
+        title: "No se pudo guardar la serie",
+        text:
+          error instanceof Error
+            ? error.message
+            : "La serie no quedo registrada correctamente. Revisa tu conexion e intentalo de nuevo.",
+      });
+    }
+  };
+
+  const handleAdvanceExercise = () => {
+    if (!activeDaySession || !currentExercise || !currentExerciseCompleted || !nextExercise) {
+      return;
+    }
+
+    const nextProgress = normalizeGuidedProgress(
+      {
+        ...guidedProgress,
+        activeExerciseIndex: activeExerciseIndex + 1,
+      },
+      dayExercises,
+    );
+
+    setGuidedProgress(nextProgress);
+    writeGuidedProgress(activeDaySession.id, nextProgress);
+    setTimerRunning(false);
+    setTimerTarget(null);
+    setTimerSeconds(nextExercise.rest_seconds && nextExercise.rest_seconds > 0 ? nextExercise.rest_seconds : 30);
+    setTimerRemaining(nextExercise.rest_seconds && nextExercise.rest_seconds > 0 ? nextExercise.rest_seconds : 30);
+    spokenTimerMarksRef.current.clear();
+
+    if (voiceTimerEnabled) {
+      void playElevenLabsSpeech(
+        getNextExerciseMotivation(nextExercise.exercise_name, getExerciseSeriesCount(nextExercise)),
+        "session",
+      );
+    }
+  };
+
+  const handleFinishSession = async () => {
+    if (!activeDaySession || !routineToday || !allSeriesCompleted) {
       return;
     }
 
     try {
       await withBusyState("finish-session", async () => {
-      const nextCompletedCount = Math.min(completedBlockCount + 1, dayBlocks.length);
+        await api.put<WorkoutSession>(`/sessions/${activeDaySession.id}/finish`, {
+          perceived_effort: effort,
+          difficulty_rating: Number(difficulty),
+          pain_or_discomfort: painOrDiscomfort,
+          notes: buildSessionProgressNotes(sessionNotes, dayExercises, guidedProgress) || undefined,
+        });
 
-      if (nextCompletedCount < dayBlocks.length) {
-        setCompletedBlockCount(nextCompletedCount);
-        writeCompletedBlocks(activeDaySession.id, nextCompletedCount);
+        clearApiClientState();
+        clearGuidedProgress(activeDaySession.id);
+        setSessionNotes("");
+        setPainOrDiscomfort(false);
+        setDifficulty("6");
+        setEffort("moderate");
+        setGuidedProgress((current) => normalizeGuidedProgress(current, dayExercises));
+        setTimerRunning(false);
+        setTimerTarget(null);
+        spokenTimerMarksRef.current.clear();
+
+        if (voiceTimerEnabled) {
+          void playElevenLabsSpeech(
+            buildFinalSummaryMessage({
+              dayLabel: routineToday?.today.day_label ?? "tu entrenamiento de hoy",
+              exerciseCount: dayExercises.length,
+              totalSeries: totalSeriesCount,
+              effort,
+              startedAt: activeDaySession.started_at,
+            }),
+            "routine",
+          );
+        }
+
+        await refreshRoutineData();
 
         await Alert.fire({
           icon: "success",
-          title: `${currentBlock.title} completada`,
-          text: `Continúa con la ${dayBlocks[nextCompletedCount].title.toLowerCase()} de hoy.`,
+          title: "Día completado",
+          text: "Completaste todos los ejercicios y series de hoy. Descansa y vuelve para el siguiente día.",
+          confirmButtonText: "Volver al dashboard",
+          allowOutsideClick: false,
         });
-        return;
-      }
-
-      await api.put<WorkoutSession>(`/sessions/${activeDaySession.id}/finish`, {
-        perceived_effort: effort,
-        difficulty_rating: Number(difficulty),
-        pain_or_discomfort: painOrDiscomfort,
-        notes: sessionNotes.trim() || undefined,
-      });
-
-      clearApiClientState();
-      clearCompletedBlocks(activeDaySession.id);
-      setSessionNotes("");
-      setPainOrDiscomfort(false);
-      setDifficulty("6");
-      setEffort("moderate");
-      setCompletedBlockCount(dayBlocks.length);
-
-      await refreshRoutineData();
-
-      await Alert.fire({
-        icon: "success",
-        title: "Día completado",
-        text:
-          dayBlocks.length > 1
-            ? "Completaste la última sesión de hoy y con eso cerraste el día de entrenamiento."
-            : "Completaste tu entrenamiento de hoy. Descansa y vuelve mañana para el siguiente día.",
-        confirmButtonText: "Volver al dashboard",
-        allowOutsideClick: false,
-      });
 
         navigate("/home", { replace: true });
       });
@@ -682,11 +1636,11 @@ export default function Routine() {
       console.error("Failed to finish workout session", error);
       await Alert.fire({
         icon: "error",
-        title: "No se pudo finalizar la sesiÃ³n",
+        title: "No se pudo finalizar la sesion",
         text:
           error instanceof Error
             ? error.message
-            : "La sesiÃ³n no quedÃ³ cerrada correctamente. Revisa tu conexiÃ³n o los permisos de la API y vuelve a intentarlo.",
+            : "La sesion no quedo cerrada correctamente. Revisa tu conexion o los permisos de la API y vuelve a intentarlo.",
       });
     }
   };
@@ -829,6 +1783,24 @@ export default function Routine() {
                     El ultimo analisis visual se aplicara automaticamente a la rutina.
                   </p>
                 ) : null}
+                <div className="rt-voice-tools">
+                  <button
+                    type="button"
+                    className={`rt-btn${isListeningToInstructions ? "" : " rt-btn--ghost"}`}
+                    onClick={handleToggleInstructionDictation}
+                    disabled={
+                      isBusy ||
+                      !speechRecognitionSupported ||
+                      instructionDictationStatus === "stopping"
+                    }
+                  >
+                    {isListeningToInstructions ? <MicOff size={14} /> : <Mic size={14} />}
+                    {dictationButtonLabel}
+                  </button>
+                  <span className="rt-voice-tools__hint">
+                    {dictationHint}
+                  </span>
+                </div>
                 <textarea
                   className="rt-textarea"
                   value={customInstructions}
@@ -837,6 +1809,12 @@ export default function Routine() {
                   rows={4}
                   disabled={isBusy}
                 />
+                {liveTranscript ? (
+                  <p className="rt-live-transcript">Escuchando: {liveTranscript}</p>
+                ) : null}
+                {instructionTranscriptError ? (
+                  <p className="rt-error-copy">{instructionTranscriptError}</p>
+                ) : null}
                 <div className="rt-actions rt-actions--start">
                   {!routineDashboard ? (
                     <button className="rt-btn" onClick={() => void handleGenerate()} disabled={isBusy}>
@@ -937,8 +1915,8 @@ export default function Routine() {
                       {dayCompleted
                         ? "Día completado"
                         : activeDaySession
-                          ? `${completedBlockCount}/${dayBlocks.length} sesiones cerradas`
-                          : `${dayBlocks.length} sesiones internas`}
+                          ? `${completedTotalSeries}/${totalSeriesCount} series completadas`
+                          : `${dayExercises.length} ejercicios`}
                     </span>
                   </div>
 
@@ -992,8 +1970,8 @@ export default function Routine() {
 
                       <div className="rt-day-preview__meta">
                         <span>Posición: {previewDay.day_index} de {routineDashboard?.days.length ?? 0}</span>
-                        <span>Sesiones internas: {buildWorkoutBlocks(previewDay).length}</span>
                         <span>Ejercicios: {previewDay.exercises.length}</span>
+                        <span>Series: {getTotalSeriesCount(previewDay.exercises)}</span>
                       </div>
 
                       <p className="rt-day-preview__focus">
@@ -1009,18 +1987,25 @@ export default function Routine() {
                   )}
 
                   <div className="rt-blocks">
-                    {dayBlocks.map((block, index) => {
-                      const isCompleted = dayCompleted || index < completedBlockCount;
+                    {dayExercises.map((exercise, index) => {
+                      const completedSeries = dayCompleted
+                        ? getExerciseSeriesCount(exercise)
+                        : getCompletedSeriesCount(guidedProgress, exercise);
+                      const totalSeries = getExerciseSeriesCount(exercise);
+                      const isCompleted = dayCompleted || completedSeries >= totalSeries;
                       const isCurrent = Boolean(
-                        activeDaySession && !dayCompleted && index === completedBlockCount,
+                        activeDaySession && !dayCompleted && index === activeExerciseIndex,
                       );
                       const isAvailable = !activeDaySession && !dayCompleted && index === 0;
-                      const isLocked = !isCompleted && !isCurrent && !isAvailable;
-                      const isLastBlock = index === dayBlocks.length - 1;
+                      const isLocked =
+                        !isCompleted &&
+                        !isCurrent &&
+                        !isAvailable &&
+                        (!activeDaySession || index > activeExerciseIndex);
 
                       return (
                         <div
-                          key={block.id}
+                          key={exercise.id}
                           className={`rt-block-card${
                             isCompleted
                               ? " rt-block-card--completed"
@@ -1033,43 +2018,64 @@ export default function Routine() {
                         >
                           <div className="rt-block-card__head">
                             <div>
-                              <strong>{block.title}</strong>
-                              <p>{block.exercises.length} ejercicios en secuencia</p>
+                              <strong>
+                                Ejercicio {index + 1}: {exercise.exercise_name}
+                              </strong>
+                              <p>
+                                {totalSeries} series · {exercise.reps} reps · Descanso {exercise.rest_seconds ?? 0}s
+                              </p>
                             </div>
                             <span className={`rt-pill rt-pill--${isCompleted ? "completed" : isCurrent ? "active" : isAvailable ? "available" : "blocked"}`}>
                               {isCompleted
-                                ? "Completada"
+                                ? "Completado"
                                 : isCurrent
-                                  ? "En curso"
+                                  ? `Serie ${currentSeriesNumber} de ${currentExerciseTotalSeries}`
                                   : isAvailable
                                     ? "Lista para iniciar"
                                     : "Se habilita después"}
                             </span>
                           </div>
 
-                          <div className="rt-exercise-list">
-                            {block.exercises.map((exercise) => (
-                              <div key={exercise.id} className="rt-exercise-card">
-                                <strong>{exercise.exercise_name}</strong>
-                                <p>
-                                  {exercise.sets} series · {exercise.reps} reps · Descanso {exercise.rest_seconds ?? 0}s
-                                </p>
-                                {exercise.notes ? <span>{exercise.notes}</span> : null}
-                              </div>
-                            ))}
+                          <div className="rt-series-track">
+                            {Array.from({ length: totalSeries }, (_, seriesIndex) => {
+                              const seriesNumber = seriesIndex + 1;
+                              const seriesDone = seriesNumber <= completedSeries;
+                              const seriesActive =
+                                isCurrent && !isCompleted && seriesNumber === currentSeriesNumber;
+
+                              return (
+                                <span
+                                  key={`${exercise.id}-series-${seriesNumber}`}
+                                  className={`rt-series-chip${
+                                    seriesDone
+                                      ? " rt-series-chip--done"
+                                      : seriesActive
+                                        ? " rt-series-chip--active"
+                                        : ""
+                                  }`}
+                                >
+                                  {seriesDone ? <CheckCircle2 size={13} /> : null}
+                                  Serie {seriesNumber}
+                                </span>
+                              );
+                            })}
                           </div>
+
+                          {exercise.notes ? (
+                            <p className="rt-exercise-note">{exercise.notes}</p>
+                          ) : null}
 
                           {isCompleted ? (
                             <div className="rt-block-note">
                               <CheckCircle2 size={15} />
-                              <span>Esta sesión ya quedó completada y se mantiene visible como referencia.</span>
+                              <span>Este ejercicio ya quedó completado y se mantiene visible como referencia.</span>
                             </div>
                           ) : null}
 
                           {isLocked ? (
                             <div className="rt-block-note">
                               <ClipboardList size={15} />
-                              <span>Se habilita automáticamente cuando cierres la sesión anterior.</span>
+                              <span>Se habilita cuando completes las series del ejercicio activo.</span>
                             </div>
                           ) : null}
 
@@ -1084,23 +2090,121 @@ export default function Routine() {
 
                           {isCurrent ? (
                             <div className="rt-block-current">
-                              {!isLastBlock ? (
+                              <div className="rt-timer-card">
+                                <div className="rt-timer-card__head">
+                                  <div>
+                                    <strong>
+                                      Temporizador de {exercise.exercise_name} · Serie {currentSeriesNumber} de {currentExerciseTotalSeries}
+                                    </strong>
+                                    <p>
+                                      Tiempo sugerido: {suggestedTimerSeconds}s. La voz anuncia ejercicio, serie, aviso de 10 segundos y cierre del conteo.
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`rt-btn${voiceTimerEnabled ? "" : " rt-btn--ghost"}`}
+                                    onClick={handleToggleVoiceTimer}
+                                  >
+                                    {voiceTimerEnabled ? <Mic size={14} /> : <MicOff size={14} />}
+                                    {voiceTimerEnabled ? "Voz activa" : "Voz apagada"}
+                                  </button>
+                                </div>
+
+                                <div className="rt-timer-card__controls">
+                                  <label className="rt-timer-card__input">
+                                    <span>Segundos</span>
+                                    <input
+                                      className="rt-input rt-input--small"
+                                      type="number"
+                                      min={0}
+                                      max={600}
+                                      value={timerSeconds}
+                                      onChange={(event) => handleTimerInputChange(event.target.value)}
+                                      disabled={isBusy}
+                                    />
+                                  </label>
+
+                                  <div className="rt-timer-card__actions">
+                                    <button
+                                      type="button"
+                                      className="rt-btn"
+                                      onClick={handleStartTimer}
+                                      disabled={isBusy || timerSeconds <= 0 || currentExerciseCompleted}
+                                    >
+                                      <PlayCircle size={14} />
+                                      {timerRunning ? "Reiniciar conteo" : "Iniciar conteo"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rt-btn rt-btn--ghost"
+                                      onClick={handlePauseTimer}
+                                      disabled={isBusy || !timerRunning}
+                                    >
+                                      Pausar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rt-btn rt-btn--ghost"
+                                      onClick={handleResetTimer}
+                                      disabled={isBusy}
+                                    >
+                                      <TimerReset size={14} />
+                                      Restablecer
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="rt-timer-card__status">
+                                  <strong>{formatTimerLabel(timerRemaining)}</strong>
+                                  <span>
+                                    {timerRunning
+                                      ? timerTarget
+                                        ? `${timerTarget.exerciseName} · Serie ${timerTarget.seriesNumber}`
+                                        : "Conteo activo"
+                                      : timerRemaining === 0
+                                        ? "Conteo finalizado. Ya puedes marcar la serie."
+                                        : "Listo para iniciar la serie actual"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {!currentExerciseCompleted ? (
                                 <>
                                   <p className="rt-block-current__copy">
-                                    Al cerrar esta sesión interna se habilita inmediatamente la siguiente parte del día.
+                                    Inicia el temporizador para esta serie. Al finalizar, registra la serie completada para avanzar.
                                   </p>
                                   <div className="rt-actions">
-                                    <button className="rt-btn" onClick={() => void handleAdvanceSession()} disabled={isBusy}>
-                                      {busyAction === "finish-session"
-                                        ? "Guardando..."
-                                        : `Finalizar ${block.title.toLowerCase()}`}
+                                    <button
+                                      className="rt-btn"
+                                      onClick={() => void handleCompleteCurrentSeries()}
+                                      disabled={
+                                        isBusy ||
+                                        !timerMatchesCurrentSeries ||
+                                        timerRunning ||
+                                        timerRemaining !== 0
+                                      }
+                                    >
+                                      {busyAction === "complete-series"
+                                        ? "Guardando serie..."
+                                        : `Finalizar serie ${currentSeriesNumber}`}
                                     </button>
                                   </div>
                                 </>
-                              ) : (
+                              ) : nextExercise ? (
                                 <>
                                   <p className="rt-block-current__copy">
-                                    Esta es la última sesión del día. Al cerrarla sí se marcará el día completo.
+                                    Completaste todas las series de este ejercicio. Avanza cuando estés listo para continuar.
+                                  </p>
+                                  <div className="rt-actions">
+                                    <button className="rt-btn" onClick={handleAdvanceExercise} disabled={isBusy}>
+                                      Avanzar a {nextExercise.exercise_name}
+                                    </button>
+                                  </div>
+                                </>
+                              ) : allSeriesCompleted ? (
+                                <>
+                                  <p className="rt-block-current__copy">
+                                    Todos los ejercicios y series quedaron completados. Registra el cierre final de la sesión.
                                   </p>
                                   <div className="rt-feedback-grid">
                                     <div className="rt-effort-group">
@@ -1153,19 +2257,40 @@ export default function Routine() {
                                   </div>
 
                                   <div className="rt-actions">
-                                    <button className="rt-btn" onClick={() => void handleAdvanceSession()} disabled={isBusy}>
+                                    <button className="rt-btn" onClick={() => void handleFinishSession()} disabled={isBusy}>
                                       {busyAction === "finish-session"
                                         ? "Finalizando día..."
                                         : "Finalizar día de entrenamiento"}
                                     </button>
                                   </div>
                                 </>
-                              )}
+                              ) : null}
                             </div>
                           ) : null}
                         </div>
                       );
                     })}
+
+                    {activeDaySession && allSeriesCompleted && !currentExercise ? (
+                      <div className="rt-block-card rt-block-card--completed">
+                        <div className="rt-block-card__head">
+                          <div>
+                            <strong>Sesión lista para cierre</strong>
+                            <p>Todas las series fueron registradas correctamente.</p>
+                          </div>
+                          <span className="rt-pill rt-pill--completed">Completada</span>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {dayCompleted ? (
+                      <div className="rt-session-summary">
+                        <strong>Resumen registrado</strong>
+                        <p>
+                          {dayExercises.length} ejercicios · {totalSeriesCount} series planificadas.
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 </article>
               </section>

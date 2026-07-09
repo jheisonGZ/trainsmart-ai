@@ -6,6 +6,7 @@ import {
   finishMySessionController,
   getMySessionController,
   listMySessionsController,
+  updateSessionExerciseProgressController,
 } from '../controllers/sessions.controller';
 import {
   generateRoutineAudioController,
@@ -20,9 +21,11 @@ import {
 import {
   createSessionSchema,
   finishSessionSchema,
+  sessionExerciseOrderParamSchema,
   sessionExerciseSchema,
   sessionIdParamSchema,
   sessionListQuerySchema,
+  updateSessionExerciseProgressSchema,
 } from '../validators/sessions.schemas';
 
 const router = Router();
@@ -53,6 +56,13 @@ router.post(
   validateParams(sessionIdParamSchema),
   validateBody(sessionExerciseSchema),
   addSessionExerciseController,
+);
+router.put(
+  '/:sessionId/exercises/:exerciseOrder/progress',
+  authMiddleware,
+  validateParams(sessionExerciseOrderParamSchema),
+  validateBody(updateSessionExerciseProgressSchema),
+  updateSessionExerciseProgressController,
 );
 router.put(
   '/:sessionId/finish',

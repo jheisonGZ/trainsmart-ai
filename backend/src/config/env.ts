@@ -19,9 +19,23 @@ const booleanEnvSchema = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
+function isValidTimeZone(value: string) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  APP_TIME_ZONE: z
+    .string()
+    .min(1)
+    .default('America/Bogota')
+    .refine(isValidTimeZone, 'APP_TIME_ZONE must be a valid IANA time zone.'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   DATABASE_URL: z.string().optional().default(''),

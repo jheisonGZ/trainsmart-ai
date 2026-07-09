@@ -149,6 +149,19 @@
   font-size: 2.3rem; font-weight: 900; letter-spacing: -1.2px; line-height: 1;
 }
 .db-hero-right { display: flex; align-items: center; gap: 12px; }
+.db-voice-toggle {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: transparent; border: 1px solid var(--border);
+  color: rgba(255,255,255,0.72); padding: 8px 12px; border-radius: 999px;
+  cursor: pointer; font-size: 0.76rem; font-weight: 700; transition: all .2s;
+}
+.db-voice-toggle:hover {
+  border-color: rgba(255,74,43,0.35); color: #ff8d75;
+}
+.db-voice-toggle[aria-pressed="true"] {
+  color: #ff8d75; border-color: rgba(255,74,43,0.28);
+  background: rgba(255,74,43,0.1);
+}
 
 /* Avatar desktop (solo desktop) */
 .db-desktop-avatar {

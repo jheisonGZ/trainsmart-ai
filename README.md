@@ -114,6 +114,25 @@ npm run preview
 npm run lint
 ```
 
+## Voz y dictado
+
+La pantalla de `Rutina` ahora incluye dos ayudas del navegador:
+
+```text
+- Dictado por voz para completar instrucciones al generar o regenerar la rutina.
+- Temporizador guiado con conteo por voz y aviso cuando quedan 10 segundos.
+- Retroalimentación breve durante la sesión al avanzar entre bloques.
+- Resumen final por voz al completar el día de entrenamiento.
+```
+
+Consideraciones:
+
+```text
+- El dictado usa Web Speech API y funciona mejor en Chrome o Edge.
+- El saludo y el temporizador por voz usan Speech Synthesis del navegador.
+- No requieren nuevas variables de entorno ni cambios en backend.
+```
+
 ---
 
 ## 📁 Estructura del proyecto

@@ -4,6 +4,7 @@ import {
   finishMySession,
   getMySession,
   listMySessions,
+  updateExerciseProgressForSession,
 } from '../services/sessions.service';
 import { getRequestAuth, getRequestSupabase } from '../middlewares/auth.middleware';
 import { asyncHandler, sendSuccess } from '../utils/api-response';
@@ -44,6 +45,18 @@ export const addSessionExerciseController = asyncHandler(async (req, res) => {
   );
 
   return sendSuccess(res, exercise, 201);
+});
+
+export const updateSessionExerciseProgressController = asyncHandler(async (req, res) => {
+  const exercise = await updateExerciseProgressForSession(
+    getRequestSupabase(req),
+    getRequestAuth(req),
+    req.params.sessionId,
+    Number(req.params.exerciseOrder),
+    req.body,
+  );
+
+  return sendSuccess(res, exercise);
 });
 
 export const finishMySessionController = asyncHandler(async (req, res) => {

@@ -10,6 +10,7 @@ import {
   type CreateSessionInput,
   type FinishSessionInput,
   type SessionExerciseInput,
+  type UpdateSessionExerciseProgressInput,
 } from '../validators/sessions.schemas';
 import { getRoutineDayExercises } from './routines.repository';
 
@@ -209,6 +210,41 @@ export async function addSessionExercise(
     .single<WorkoutSessionExercise>();
 
   throwIfSupabaseError(error, 'Failed to add workout session exercise.');
+  return data;
+}
+
+export async function updateSessionExerciseProgress(
+  supabase: RequestSupabaseClient,
+  sessionId: string,
+  userId: string,
+  exerciseOrder: number,
+  input: UpdateSessionExerciseProgressInput,
+) {
+  const session = await getSessionById(supabase, sessionId, userId);
+
+  if (session.ended_at) {
+    throw new ConflictError('Workout session has already been completed.');
+  }
+
+  const { data, error } = await supabase
+    .from('workout_session_exercises')
+    .update({
+      performed_sets: input.performed_sets,
+      performed_reps: input.performed_reps ?? null,
+      weight_kg: input.weight_kg ?? null,
+      rest_seconds: input.rest_seconds ?? null,
+    })
+    .eq('session_id', sessionId)
+    .eq('exercise_order', exerciseOrder)
+    .select('*')
+    .maybeSingle<WorkoutSessionExercise>();
+
+  throwIfSupabaseError(error, 'Failed to update workout session exercise progress.');
+
+  if (!data) {
+    throw new NotFoundError('Workout session exercise not found');
+  }
+
   return data;
 }
 

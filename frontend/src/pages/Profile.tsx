@@ -24,6 +24,7 @@ import RequestStateCard from "../components/RequestStateCard";
 import { useAuth } from "../context/AuthContext";
 import { ApiClientError, api } from "../lib/api";
 import type { Goal, ProfileRecord } from "../types/api";
+import { markVoiceGreetingPending } from "../utils/welcomeGreeting";
 import "./Profile.css";
 
 const Alert = Swal.mixin({
@@ -489,6 +490,7 @@ function ProfileForm({
       onSaved(saved);
 
       if (!isEdit) {
+        markVoiceGreetingPending();
         navigate("/dashboard", { replace: true });
       }
     } catch (error) {

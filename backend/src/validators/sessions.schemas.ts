@@ -26,6 +26,13 @@ export const sessionExerciseSchema = z.object({
   rest_seconds: z.coerce.number().int().min(0).max(600).nullable().optional(),
 });
 
+export const updateSessionExerciseProgressSchema = z.object({
+  performed_sets: z.coerce.number().int().min(0).max(20),
+  performed_reps: z.string().trim().max(50).nullable().optional(),
+  weight_kg: z.coerce.number().min(0).max(1000).nullable().optional(),
+  rest_seconds: z.coerce.number().int().min(0).max(600).nullable().optional(),
+});
+
 export const finishSessionSchema = z.object({
   perceived_effort: perceivedEffortSchema.optional(),
   difficulty_rating: z.coerce.number().int().min(1).max(10).optional(),
@@ -37,7 +44,15 @@ export const sessionIdParamSchema = z.object({
   sessionId: z.string().uuid(),
 });
 
+export const sessionExerciseOrderParamSchema = z.object({
+  sessionId: z.string().uuid(),
+  exerciseOrder: z.coerce.number().int().min(1),
+});
+
 export type SessionListQueryInput = z.infer<typeof sessionListQuerySchema>;
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 export type SessionExerciseInput = z.infer<typeof sessionExerciseSchema>;
+export type UpdateSessionExerciseProgressInput = z.infer<
+  typeof updateSessionExerciseProgressSchema
+>;
 export type FinishSessionInput = z.infer<typeof finishSessionSchema>;

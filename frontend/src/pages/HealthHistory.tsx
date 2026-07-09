@@ -38,6 +38,7 @@ import RequestStateCard from "../components/RequestStateCard";
 import { useAuth } from "../context/AuthContext";
 import { ApiClientError, api } from "../lib/api";
 import type { HealthHistoryRecord } from "../types/api";
+import { markVoiceGreetingPending } from "../utils/welcomeGreeting";
 import "./HealthHistory.css";
 
 interface HealthFormData {
@@ -458,6 +459,7 @@ function HealthForm({
       onSaved(saved);
 
       if (!isEdit) {
+        markVoiceGreetingPending();
         navigate("/home", { replace: true });
       }
     } catch (error) {

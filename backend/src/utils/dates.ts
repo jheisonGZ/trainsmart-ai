@@ -1,3 +1,5 @@
+import { env } from '../config/env';
+
 export function calculateAge(birthDate: string | null | undefined): number | null {
   if (!birthDate) {
     return null;
@@ -38,7 +40,23 @@ export function getWeekStart(date: Date): Date {
   return copy;
 }
 
-export function getDayIndexFromDate(date = new Date()): number {
-  const day = date.getUTCDay();
+export function getDayIndexFromDate(
+  date = new Date(),
+  timeZone = env.APP_TIME_ZONE,
+): number {
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'short',
+  }).format(date);
+  const dayMap: Record<string, number> = {
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+    Sun: 7,
+  };
+  const day = dayMap[weekday] ?? 1;
   return day === 0 ? 7 : day;
 }

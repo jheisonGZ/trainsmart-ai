@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
 import { supabase, supabaseConfigError } from "../lib/supabaseClient";
+import { markVoiceGreetingPending } from "../utils/welcomeGreeting";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ export default function AuthCallback() {
         if (currentSession.data.session) {
           if (active) {
             setCompleted(true);
+            markVoiceGreetingPending();
             navigate("/dashboard", { replace: true });
           }
           return;
@@ -53,6 +55,7 @@ export default function AuthCallback() {
 
         if (active) {
           setCompleted(true);
+          markVoiceGreetingPending();
           navigate("/dashboard", { replace: true });
         }
       } catch (callbackError) {

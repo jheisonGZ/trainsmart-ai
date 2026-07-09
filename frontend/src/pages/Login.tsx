@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 import { useAuth } from "../context/AuthContext";
 import { auth } from "../firebase";
 import { isSupabaseConfigured, supabaseConfigError } from "../lib/supabaseClient";
+import { markVoiceGreetingPending } from "../utils/welcomeGreeting";
 import "./Login.css";
 
 type View = "login" | "register" | "forgot";
@@ -263,6 +264,7 @@ export default function Login() {
       }
 
       await showSuccess("Bienvenido de vuelta");
+      markVoiceGreetingPending();
       navigate("/dashboard");
     } catch (error) {
       Swal.close();
@@ -311,6 +313,7 @@ export default function Login() {
       }
 
       await showSuccess("Cuenta creada correctamente");
+      markVoiceGreetingPending();
       navigate("/dashboard");
     } catch (error) {
       Swal.close();
@@ -351,6 +354,7 @@ export default function Login() {
       }
 
       await showSuccess("Sesión iniciada correctamente");
+      markVoiceGreetingPending();
       navigate("/dashboard");
     } catch (error) {
       Swal.close();
