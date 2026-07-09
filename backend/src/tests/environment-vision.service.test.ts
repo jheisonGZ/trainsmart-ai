@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { analyzeMyEnvironment } from '../services/environment-vision.service';
+import {
+  analyzeMyEnvironment,
+  getMyLatestEnvironmentAnalysis,
+} from '../services/environment-vision.service';
 import { createFakeSupabase } from './helpers/fakeSupabase';
 import { TEST_AUTH, TEST_DATA_URL } from './helpers/testFixtures';
 
@@ -40,4 +43,34 @@ test('environment analysis saves image and normalized equipment', async () => {
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+test('latest environment analysis still resolves when signed URL generation fails', async () => {
+  const supabase = createFakeSupabase(
+    {
+      environment_analyses: [
+        {
+          id: 'env-1',
+          user_id: TEST_AUTH.userId,
+          source_image_path: 'environment-images/user/env-1/source.jpg',
+          source_image_content_type: 'image/jpeg',
+          ximilar_model: 'photo/tags/v2/tags',
+          detected_tags: [{ name: 'dumbbell', prob: 0.97 }],
+          detected_equipment: ['mancuernas'],
+          detected_space_tags: ['interior'],
+          summary: 'Resumen',
+          training_context: 'Contexto',
+          ximilar_response: {},
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    },
+    { failSignedUrl: true },
+  );
+
+  const result = await getMyLatestEnvironmentAnalysis(supabase as never, TEST_AUTH);
+
+  assert.ok(result);
+  assert.equal(result?.source_image_url, null);
+  assert.deepEqual(result?.detected_equipment, ['mancuernas']);
 });

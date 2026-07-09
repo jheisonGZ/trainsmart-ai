@@ -146,7 +146,7 @@ export async function getCurrentRoutineDashboard(
   const current = await getCurrentApprovedRoutineForUser(supabase, auth.userId);
 
   if (!current) {
-    throw new NotFoundError('No active approved routine found.');
+    return null;
   }
 
   return {
@@ -165,7 +165,7 @@ export async function getCurrentRoutineToday(
   const current = await getCurrentApprovedRoutineForUser(supabase, auth.userId);
 
   if (!current) {
-    throw new NotFoundError('No active approved routine found.');
+    return null;
   }
 
   const days = await getHydratedRoutineDays(supabase, current.version.id);

@@ -1,4 +1,5 @@
 import type { RequestSupabaseClient } from '../lib/supabase/request';
+import { logger } from '../lib/logger';
 import { ApiError } from '../utils/api-response';
 
 const SIGNED_URL_EXPIRES_IN_SECONDS = 300;
@@ -55,4 +56,22 @@ export async function createVisionImageSignedUrl(
     imageUrl: data.signedUrl,
     expiresIn: SIGNED_URL_EXPIRES_IN_SECONDS,
   };
+}
+
+export async function createVisionImageSignedUrlSafely(
+  supabase: RequestSupabaseClient,
+  bucket: string,
+  path: string,
+) {
+  try {
+    return await createVisionImageSignedUrl(supabase, bucket, path);
+  } catch (error) {
+    logger.warn('Could not create signed URL for vision image. Returning response without image URL.', {
+      bucket,
+      path,
+      error,
+    });
+
+    return null;
+  }
 }

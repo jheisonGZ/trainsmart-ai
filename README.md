@@ -215,6 +215,7 @@ Se agregó la primera propuesta del MVP dentro de `Routine.tsx`.
 * El token de Ximilar se usa solo en backend
 * Las imágenes del entorno se almacenan en bucket privado con signed URLs
 * Para habilitar esta funcionalidad también debes configurar el backend y aplicar la migración `backend/sql/008_environment_vision.sql`
+* Si el usuario todavía no tiene una rutina aprobada, `GET /api/routines/current/today` y `GET /api/routines/current/dashboard` ahora responden `null` para que frontend muestre estado vacío sin error
 
 ---
 

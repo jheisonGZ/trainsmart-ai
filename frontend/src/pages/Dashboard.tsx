@@ -92,15 +92,8 @@ export default function Dashboard() {
           }
         }
 
-        let routineData: RoutineTodayResponse | null = null;
-
-        try {
-          routineData = await api.getFresh<RoutineTodayResponse>("/routines/current/today");
-        } catch (error) {
-          if (!(error instanceof ApiClientError) || error.status !== 404) {
-            console.error("Failed to load current routine", error);
-          }
-        }
+        const routineData =
+          await api.getFresh<RoutineTodayResponse | null>("/routines/current/today");
 
         if (!active) {
           return;

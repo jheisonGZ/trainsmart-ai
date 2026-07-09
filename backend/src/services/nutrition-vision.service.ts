@@ -9,6 +9,7 @@ import {
   listMealAnalysesByUserId,
 } from '../repositories/nutrition-vision.repository';
 import type { RequestSupabaseClient } from '../lib/supabase/request';
+import { logger } from '../lib/logger';
 import type { AuthUser } from '../types/auth.types';
 import type {
   MealAnalysis,
@@ -17,7 +18,7 @@ import type {
 } from '../types/nutrition-vision.types';
 import {
   buildVisionImageStoragePath,
-  createVisionImageSignedUrl,
+  createVisionImageSignedUrlSafely,
   uploadVisionImage,
 } from './visionImageStorage.service';
 import {
@@ -154,7 +155,7 @@ async function enrichMealAnalysis(
     return null;
   }
 
-  const signedUrl = await createVisionImageSignedUrl(
+  const signedUrl = await createVisionImageSignedUrlSafely(
     supabase,
     env.SUPABASE_MEAL_IMAGES_BUCKET,
     analysis.source_image_path,
@@ -162,7 +163,7 @@ async function enrichMealAnalysis(
 
   return {
     ...analysis,
-    source_image_url: signedUrl.imageUrl,
+    source_image_url: signedUrl?.imageUrl ?? null,
   };
 }
 
@@ -229,8 +230,16 @@ export async function getMyLatestMealAnalysis(
   supabase: RequestSupabaseClient,
   auth: AuthUser,
 ) {
-  const analysis = await getLatestMealAnalysisByUserId(supabase, auth.userId);
-  return enrichMealAnalysis(supabase, analysis);
+  try {
+    const analysis = await getLatestMealAnalysisByUserId(supabase, auth.userId);
+    return await enrichMealAnalysis(supabase, analysis);
+  } catch (error) {
+    logger.warn('Could not load latest meal analysis. Returning empty state instead.', {
+      userId: auth.userId,
+      error,
+    });
+    return null;
+  }
 }
 
 export async function listMyMealAnalyses(
@@ -238,6 +247,15 @@ export async function listMyMealAnalyses(
   auth: AuthUser,
   limit = 5,
 ) {
-  const analyses = await listMealAnalysesByUserId(supabase, auth.userId, limit);
-  return enrichMealAnalyses(supabase, analyses);
+  try {
+    const analyses = await listMealAnalysesByUserId(supabase, auth.userId, limit);
+    return await enrichMealAnalyses(supabase, analyses);
+  } catch (error) {
+    logger.warn('Could not load meal analysis history. Returning empty state instead.', {
+      userId: auth.userId,
+      limit,
+      error,
+    });
+    return [];
+  }
 }

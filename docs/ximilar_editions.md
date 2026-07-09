@@ -256,3 +256,19 @@ npm run build
 ## Resumen corto
 
 Quedaron implementadas las tres funcionalidades visuales pedidas, con servicios separados, persistencia privada, integración en frontend, pruebas simuladas y smoke tests reales contra Ximilar. La única particularidad externa encontrada fue que `Person Detection` no estuvo disponible para esta cuenta, así que el seguimiento corporal quedó protegido con fallback para no bloquear el producto.
+
+## Ajuste posterior de estado vacío
+
+Se corrigió además el comportamiento de las rutas actuales de rutina para que la ausencia de una rutina activa/aprobada no se trate como error:
+
+- `GET /api/routines/current/dashboard`
+- `GET /api/routines/current/today`
+
+Ahora ambas responden `null` cuando el usuario todavía no tiene rutina aprobada, y las vistas `Dashboard` y `Routine` muestran empty state en vez de propagar un 404.
+
+También se reforzó la capa visual para registros existentes cuya imagen ya no pueda abrirse en Supabase Storage:
+
+- si falla la generación de signed URL en `latest` o `history`
+- el backend mantiene la respuesta del análisis
+- `source_image_url` se devuelve en `null`
+- la vista no se cae por un `500` solo porque la imagen privada no esté accesible

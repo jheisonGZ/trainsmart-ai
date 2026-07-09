@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 
 import { env } from '../config/env';
 import type { RequestSupabaseClient } from '../lib/supabase/request';
+import { logger } from '../lib/logger';
 import type { AuthUser } from '../types/auth.types';
 import type {
   EnvironmentAnalysisResponse,
@@ -14,7 +15,7 @@ import {
 import { analyzeImageTagsWithXimilar } from '../integrations/ximilar/client';
 import {
   buildVisionImageStoragePath,
-  createVisionImageSignedUrl,
+  createVisionImageSignedUrlSafely,
   uploadVisionImage,
 } from './visionImageStorage.service';
 import {
@@ -78,7 +79,7 @@ async function enrichEnvironmentAnalysis(
     return null;
   }
 
-  const signedUrl = await createVisionImageSignedUrl(
+  const signedUrl = await createVisionImageSignedUrlSafely(
     supabase,
     env.SUPABASE_ENVIRONMENT_IMAGES_BUCKET,
     analysis.source_image_path,
@@ -86,7 +87,7 @@ async function enrichEnvironmentAnalysis(
 
   return {
     ...analysis,
-    source_image_url: signedUrl.imageUrl,
+    source_image_url: signedUrl?.imageUrl ?? null,
   };
 }
 
@@ -152,8 +153,16 @@ export async function getMyLatestEnvironmentAnalysis(
   supabase: RequestSupabaseClient,
   auth: AuthUser,
 ) {
-  const analysis = await getLatestEnvironmentAnalysisByUserId(supabase, auth.userId);
-  return enrichEnvironmentAnalysis(supabase, analysis);
+  try {
+    const analysis = await getLatestEnvironmentAnalysisByUserId(supabase, auth.userId);
+    return await enrichEnvironmentAnalysis(supabase, analysis);
+  } catch (error) {
+    logger.warn('Could not load latest environment analysis. Returning empty state instead.', {
+      userId: auth.userId,
+      error,
+    });
+    return null;
+  }
 }
 
 export async function getEnvironmentContextSnapshot(

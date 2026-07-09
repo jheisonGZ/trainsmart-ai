@@ -861,10 +861,8 @@ export default function Routine() {
         getOptionalResource(api.getFresh<ProfileRecord>("/profiles/me")),
         getOptionalResource(api.getFresh<HealthHistoryRecord>("/health-history/me")),
         api.getFresh<WorkoutSession[]>("/sessions/me", { limit: 10 }),
-        getOptionalResource(
-          api.getFresh<RoutineDashboardResponse>("/routines/current/dashboard"),
-        ),
-        getOptionalResource(api.getFresh<RoutineTodayResponse>("/routines/current/today")),
+        api.getFresh<RoutineDashboardResponse | null>("/routines/current/dashboard"),
+        api.getFresh<RoutineTodayResponse | null>("/routines/current/today"),
         api.getFresh<Routine[]>("/routines/me"),
         api.getFresh<EnvironmentAnalysis | null>("/vision/environment/latest"),
       ]);

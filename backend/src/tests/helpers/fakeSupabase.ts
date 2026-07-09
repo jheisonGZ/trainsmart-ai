@@ -122,6 +122,7 @@ class FakeQueryBuilder {
 
 class FakeStorageBucket {
   private readonly bucketName: string;
+  private readonly failSignedUrl: boolean;
   readonly uploads: Array<{
     bucket: string;
     path: string;
@@ -137,9 +138,11 @@ class FakeStorageBucket {
       contentType: string;
       size: number;
     }>,
+    failSignedUrl = false,
   ) {
     this.bucketName = bucketName;
     this.uploads = uploads;
+    this.failSignedUrl = failSignedUrl;
   }
 
   async upload(path: string, buffer: Buffer, options: { contentType: string }) {
@@ -154,6 +157,15 @@ class FakeStorageBucket {
   }
 
   async createSignedUrl(path: string, _expiresIn: number) {
+    if (this.failSignedUrl) {
+      return {
+        data: null,
+        error: {
+          message: 'signed url unavailable',
+        },
+      };
+    }
+
     return {
       data: {
         signedUrl: `https://signed.example/${this.bucketName}/${encodeURIComponent(path)}`,
@@ -165,6 +177,7 @@ class FakeStorageBucket {
 
 export class FakeSupabaseClient {
   readonly tables: SeedTables;
+  readonly failSignedUrl: boolean;
   readonly uploads: Array<{
     bucket: string;
     path: string;
@@ -172,10 +185,11 @@ export class FakeSupabaseClient {
     size: number;
   }> = [];
 
-  constructor(seedTables: SeedTables = {}) {
+  constructor(seedTables: SeedTables = {}, failSignedUrl = false) {
     this.tables = Object.fromEntries(
       Object.entries(seedTables).map(([table, rows]) => [table, [...rows]]),
     );
+    this.failSignedUrl = failSignedUrl;
   }
 
   from(tableName: string) {
@@ -183,10 +197,14 @@ export class FakeSupabaseClient {
   }
 
   storage = {
-    from: (bucketName: string) => new FakeStorageBucket(bucketName, this.uploads),
+    from: (bucketName: string) =>
+      new FakeStorageBucket(bucketName, this.uploads, this.failSignedUrl),
   };
 }
 
-export function createFakeSupabase(seedTables: SeedTables = {}) {
-  return new FakeSupabaseClient(seedTables);
+export function createFakeSupabase(
+  seedTables: SeedTables = {},
+  options?: { failSignedUrl?: boolean },
+) {
+  return new FakeSupabaseClient(seedTables, options?.failSignedUrl ?? false);
 }

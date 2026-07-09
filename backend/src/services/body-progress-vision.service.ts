@@ -19,7 +19,7 @@ import type {
 } from '../types/body-progress-vision.types';
 import {
   buildVisionImageStoragePath,
-  createVisionImageSignedUrl,
+  createVisionImageSignedUrlSafely,
   uploadVisionImage,
 } from './visionImageStorage.service';
 import {
@@ -132,7 +132,7 @@ async function enrichBodyProgressEntry(
     return null;
   }
 
-  const signedUrl = await createVisionImageSignedUrl(
+  const signedUrl = await createVisionImageSignedUrlSafely(
     supabase,
     env.SUPABASE_BODY_PROGRESS_IMAGES_BUCKET,
     entry.source_image_path,
@@ -140,7 +140,7 @@ async function enrichBodyProgressEntry(
 
   return {
     ...entry,
-    source_image_url: signedUrl.imageUrl,
+    source_image_url: signedUrl?.imageUrl ?? null,
   };
 }
 
@@ -237,8 +237,16 @@ export async function getMyLatestBodyProgressEntry(
   supabase: RequestSupabaseClient,
   auth: AuthUser,
 ) {
-  const entry = await getLatestBodyProgressEntryByUserId(supabase, auth.userId);
-  return enrichBodyProgressEntry(supabase, entry);
+  try {
+    const entry = await getLatestBodyProgressEntryByUserId(supabase, auth.userId);
+    return await enrichBodyProgressEntry(supabase, entry);
+  } catch (error) {
+    logger.warn('Could not load latest body progress entry. Returning empty state instead.', {
+      userId: auth.userId,
+      error,
+    });
+    return null;
+  }
 }
 
 export async function listMyBodyProgressEntries(
@@ -246,6 +254,15 @@ export async function listMyBodyProgressEntries(
   auth: AuthUser,
   limit = 6,
 ) {
-  const entries = await listBodyProgressEntriesByUserId(supabase, auth.userId, limit);
-  return enrichBodyProgressEntries(supabase, entries);
+  try {
+    const entries = await listBodyProgressEntriesByUserId(supabase, auth.userId, limit);
+    return await enrichBodyProgressEntries(supabase, entries);
+  } catch (error) {
+    logger.warn('Could not load body progress history. Returning empty state instead.', {
+      userId: auth.userId,
+      limit,
+      error,
+    });
+    return [];
+  }
 }
