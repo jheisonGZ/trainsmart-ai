@@ -217,6 +217,8 @@ export interface EnvironmentAnalysis {
   detected_equipment: string[];
   detected_space_tags: string[];
   summary: string;
+  space_description?: string;
+  equipment_description?: string;
   training_context: string;
   ximilar_response: unknown;
   created_at: string;

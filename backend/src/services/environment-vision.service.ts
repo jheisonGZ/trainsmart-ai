@@ -9,17 +9,20 @@ import type {
   EnvironmentVisionTag,
 } from '../types/environment-vision.types';
 import {
+  deleteEnvironmentAnalysesByUserId,
   createEnvironmentAnalysis,
+  listEnvironmentAnalysesByUserId,
   getLatestEnvironmentAnalysisByUserId,
+  updateEnvironmentAnalysis,
 } from '../repositories/environment-vision.repository';
 import { analyzeImageTagsWithXimilar } from '../integrations/ximilar/client';
 import {
   buildVisionImageStoragePath,
+  deleteVisionImage,
   createVisionImageSignedUrlSafely,
   uploadVisionImage,
 } from './visionImageStorage.service';
 import {
-  getTopTagNames,
   normalizeAndSortVisionTags,
   parseImageDataUrl,
   pickOutputsFromRules,
@@ -46,14 +49,13 @@ const SPACE_RULES: Array<{ labels: string[]; output: string }> = [
   { labels: ['garage'], output: 'espacio funcional tipo garaje' },
 ];
 
-function buildEnvironmentSummary(equipment: string[], spaceTags: string[], topTags: string[]) {
+function buildEnvironmentSummary(equipment: string[], spaceTags: string[]) {
   const equipmentText =
     equipment.length > 0 ? equipment.join(', ') : 'sin equipamiento claramente identificable';
   const spaceText =
     spaceTags.length > 0 ? spaceTags.join(', ') : 'sin contexto espacial concluyente';
-  const visualText = topTags.length > 0 ? topTags.join(', ') : 'sin tags relevantes';
 
-  return `Se detecta ${equipmentText}. El entorno parece ${spaceText}. Tags visuales principales: ${visualText}.`;
+  return `Se detecta ${equipmentText}. El entorno parece ${spaceText}.`;
 }
 
 function buildTrainingContext(equipment: string[], spaceTags: string[]) {
@@ -69,6 +71,22 @@ function buildTrainingContext(equipment: string[], spaceTags: string[]) {
   ];
 
   return lines.join(' ');
+}
+
+function buildSpaceDescription(spaceTags: string[]) {
+  if (spaceTags.length > 0) {
+    return `El espacio parece ${spaceTags.join(', ')}.`;
+  }
+
+  return 'No se pudo identificar con claridad el tipo de espacio disponible.';
+}
+
+function buildEquipmentDescription(equipment: string[]) {
+  if (equipment.length > 0) {
+    return `Equipo visible detectado: ${equipment.join(', ')}.`;
+  }
+
+  return 'No se detecto equipamiento claro; la rutina deberia apoyarse en peso corporal y apoyos basicos.';
 }
 
 async function enrichEnvironmentAnalysis(
@@ -88,7 +106,28 @@ async function enrichEnvironmentAnalysis(
   return {
     ...analysis,
     source_image_url: signedUrl?.imageUrl ?? null,
+    space_description: buildSpaceDescription(analysis.detected_space_tags),
+    equipment_description: buildEquipmentDescription(analysis.detected_equipment),
   };
+}
+
+async function clearEnvironmentAnalyses(
+  supabase: RequestSupabaseClient,
+  userId: string,
+) {
+  const existingAnalyses = await listEnvironmentAnalysesByUserId(supabase, userId);
+
+  for (const analysis of existingAnalyses) {
+    await deleteVisionImage(
+      supabase,
+      env.SUPABASE_ENVIRONMENT_IMAGES_BUCKET,
+      analysis.source_image_path,
+    );
+  }
+
+  if (existingAnalyses.length > 0) {
+    await deleteEnvironmentAnalysesByUserId(supabase, userId);
+  }
 }
 
 export async function analyzeMyEnvironment(
@@ -99,13 +138,11 @@ export async function analyzeMyEnvironment(
   const { contentType, extension, base64Payload, imageBuffer } = parseImageDataUrl(
     input.image_data_url,
   );
-  const analysisId = randomUUID();
-  const storagePath = buildVisionImageStoragePath(
-    'environment',
-    auth.userId,
-    analysisId,
-    extension,
-  );
+  const existingAnalysis = await getLatestEnvironmentAnalysisByUserId(supabase, auth.userId);
+  const analysisId = existingAnalysis?.id ?? randomUUID();
+  const storagePath =
+    existingAnalysis?.source_image_path ??
+    buildVisionImageStoragePath('environment', auth.userId, analysisId, extension);
 
   const ximilarResult = await analyzeImageTagsWithXimilar({
     imageBase64: base64Payload,
@@ -120,8 +157,7 @@ export async function analyzeMyEnvironment(
 
   const detectedEquipment = Array.from(new Set(pickOutputsFromRules(tags, EQUIPMENT_RULES)));
   const detectedSpaceTags = Array.from(new Set(pickOutputsFromRules(tags, SPACE_RULES)));
-  const topTags = getTopTagNames(tags);
-  const summary = buildEnvironmentSummary(detectedEquipment, detectedSpaceTags, topTags);
+  const summary = buildEnvironmentSummary(detectedEquipment, detectedSpaceTags);
   const trainingContext = buildTrainingContext(detectedEquipment, detectedSpaceTags);
 
   await uploadVisionImage(
@@ -132,21 +168,40 @@ export async function analyzeMyEnvironment(
     contentType,
   );
 
-  const analysis = await createEnvironmentAnalysis(supabase, {
-    id: analysisId,
-    user_id: auth.userId,
-    source_image_path: storagePath,
-    source_image_content_type: contentType,
-    ximilar_model: 'photo/tags/v2/tags',
-    detected_tags: tags,
-    detected_equipment: detectedEquipment,
-    detected_space_tags: detectedSpaceTags,
-    summary,
-    training_context: trainingContext,
-    ximilar_response: ximilarResult,
-  });
+  const analysis = existingAnalysis
+    ? await updateEnvironmentAnalysis(supabase, analysisId, {
+        source_image_path: storagePath,
+        source_image_content_type: contentType,
+        ximilar_model: 'photo/tags/v2/tags',
+        detected_tags: tags,
+        detected_equipment: detectedEquipment,
+        detected_space_tags: detectedSpaceTags,
+        summary,
+        training_context: trainingContext,
+        ximilar_response: ximilarResult,
+      })
+    : await createEnvironmentAnalysis(supabase, {
+        id: analysisId,
+        user_id: auth.userId,
+        source_image_path: storagePath,
+        source_image_content_type: contentType,
+        ximilar_model: 'photo/tags/v2/tags',
+        detected_tags: tags,
+        detected_equipment: detectedEquipment,
+        detected_space_tags: detectedSpaceTags,
+        summary,
+        training_context: trainingContext,
+        ximilar_response: ximilarResult,
+      });
 
   return enrichEnvironmentAnalysis(supabase, analysis);
+}
+
+export async function clearMyEnvironmentAnalysis(
+  supabase: RequestSupabaseClient,
+  auth: AuthUser,
+) {
+  await clearEnvironmentAnalyses(supabase, auth.userId);
 }
 
 export async function getMyLatestEnvironmentAnalysis(
@@ -177,8 +232,8 @@ export async function getEnvironmentContextSnapshot(
 
   return {
     summary: analysis.summary,
-    detected_equipment: analysis.detected_equipment,
-    detected_space_tags: analysis.detected_space_tags,
+    space_description: buildSpaceDescription(analysis.detected_space_tags),
+    equipment_description: buildEquipmentDescription(analysis.detected_equipment),
     training_context: analysis.training_context,
     created_at: analysis.created_at,
   };

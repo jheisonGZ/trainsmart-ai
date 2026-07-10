@@ -143,7 +143,7 @@ export async function regenerateRoutine(
 
   if (pendingVersion) {
     throw new PreconditionFailedError(
-      'There is already a proposed version pending review for this routine.',
+      'Ya existe una versión propuesta pendiente de revisión para esta rutina.',
     );
   }
 

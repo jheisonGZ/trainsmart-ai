@@ -59,7 +59,7 @@ export const generateRoutineController = asyncHandler(async (req, res) => {
     res,
     {
       ...result,
-      message: 'Routine generated successfully. Review and approve it before activation.',
+      message: 'Rutina generada correctamente. Revísala y apruébala antes de activarla.',
     },
     201,
   );
@@ -77,7 +77,7 @@ export const regenerateRoutineController = asyncHandler(async (req, res) => {
     res,
     {
       ...result,
-      message: 'New proposed routine version generated successfully.',
+      message: 'Nueva versión propuesta generada correctamente.',
     },
     201,
   );

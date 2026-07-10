@@ -179,7 +179,7 @@ export async function analyzeMyBodyProgress(
     })),
   ) as BodyProgressVisionTag[];
   const personCount = (personResult.records[0]?._objects ?? []).filter(
-    (object) => object.name.toLowerCase() === 'person',
+    (object) => object.name?.toLowerCase() === 'person',
   ).length;
   const inferredPersonCount =
     personCount > 0

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import {
+  clearMyEnvironmentAnalysisController,
   analyzeMyEnvironmentController,
   getMyLatestEnvironmentAnalysisController,
 } from '../controllers/environment-vision.controller';
@@ -11,6 +12,7 @@ import { analyzeEnvironmentSchema } from '../validators/environment-vision.schem
 const router = Router();
 
 router.get('/latest', authMiddleware, getMyLatestEnvironmentAnalysisController);
+router.delete('/latest', authMiddleware, clearMyEnvironmentAnalysisController);
 router.post(
   '/analyze',
   authMiddleware,

@@ -1,6 +1,7 @@
 import { getRequestAuth, getRequestSupabase } from '../middlewares/auth.middleware';
 import {
   analyzeMyEnvironment,
+  clearMyEnvironmentAnalysis,
   getMyLatestEnvironmentAnalysis,
 } from '../services/environment-vision.service';
 import { asyncHandler, sendSuccess } from '../utils/api-response';
@@ -22,4 +23,12 @@ export const getMyLatestEnvironmentAnalysisController = asyncHandler(async (req,
   );
 
   return sendSuccess(res, analysis);
+});
+
+export const clearMyEnvironmentAnalysisController = asyncHandler(async (req, res) => {
+  await clearMyEnvironmentAnalysis(getRequestSupabase(req), getRequestAuth(req));
+
+  return sendSuccess(res, {
+    message: 'Reconocimiento del entorno eliminado correctamente.',
+  });
 });

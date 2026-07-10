@@ -69,8 +69,8 @@ export interface ContextSnapshot {
   } | null;
   environment_analysis: {
     summary: string;
-    detected_equipment: string[];
-    detected_space_tags: string[];
+    space_description: string;
+    equipment_description: string;
     training_context: string;
     created_at: string;
   } | null;

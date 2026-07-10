@@ -20,4 +20,6 @@ export interface EnvironmentAnalysis {
 
 export interface EnvironmentAnalysisResponse extends EnvironmentAnalysis {
   source_image_url: string | null;
+  space_description: string;
+  equipment_description: string;
 }

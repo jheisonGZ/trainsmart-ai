@@ -43,8 +43,12 @@ export interface VisionTag {
   prob: number;
 }
 
-export function normalizeAndSortVisionTags(tags: VisionTag[], minProbability = 0.3) {
+export function normalizeAndSortVisionTags(
+  tags: Array<Partial<VisionTag>>,
+  minProbability = 0.3,
+) {
   return [...tags]
+    .filter((tag): tag is VisionTag => typeof tag.name === 'string' && typeof tag.prob === 'number')
     .filter((tag) => tag.prob >= minProbability)
     .map((tag) => ({
       name: tag.name.trim(),

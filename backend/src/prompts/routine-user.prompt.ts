@@ -32,7 +32,24 @@ export function buildRoutineUserPrompt({
   sections.push(JSON.stringify(latestMetrics, null, 2));
 
   sections.push('ENTORNO_Y_EQUIPO_DISPONIBLE');
-  sections.push(JSON.stringify(environmentAnalysis, null, 2));
+  sections.push(
+    environmentAnalysis
+      ? JSON.stringify(
+          {
+            summary: environmentAnalysis.summary,
+            space_description: environmentAnalysis.space_description,
+            equipment_description: environmentAnalysis.equipment_description,
+            training_context: environmentAnalysis.training_context,
+          },
+          null,
+          2,
+        )
+      : [
+          'No hay un reconocimiento visual guardado.',
+          'Diseña la rutina para que pueda hacerse sin maquinas, con peso corporal, apoyos basicos y variantes simples.',
+          'No asumas equipamiento confirmado.',
+        ].join(' '),
+  );
 
   sections.push('RETROALIMENTACION_RECIENTE');
   sections.push(JSON.stringify(feedbackSummary, null, 2));
@@ -55,7 +72,9 @@ export function buildRoutineUserPrompt({
       'Evita consejos medicos y selecciones de ejercicios inseguras.',
       'Usa espanol neutro en todo el contenido textual.',
       'Prefiere nombres de ejercicios comunes en espanol y faciles de entender para principiantes.',
-      'Si existe contexto visual de entorno o equipamiento, adaptate solo a ese equipo confirmado y no asumas maquinas no visibles.',
+      'Si existe contexto visual de entorno o equipamiento, adaptate a la descripcion del espacio y al equipo visible confirmado; no asumas maquinas ni accesorios no visibles.',
+      'Si no hay reconocimiento visual guardado, prioriza ejercicios sin maquinas, peso corporal y apoyos basicos.',
+      'Si el espacio descrito es limitado, prioriza ejercicios compactos y variantes de peso corporal o implementos sencillos.',
       'Si hay riesgos relevantes, incluyelos en safety_warnings.',
       'No dejes campos requeridos vacios.',
       'Cada dia debe incluir calentamiento, vuelta a la calma y al menos un ejercicio.',

@@ -88,6 +88,38 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
+function getEnvironmentConfirmationMessage(analysis: EnvironmentAnalysis) {
+  const hasSpaceDescription =
+    typeof analysis.space_description === "string" &&
+    !analysis.space_description.toLowerCase().startsWith("no se pudo");
+
+  if (hasSpaceDescription) {
+    return "Se reconocieron el espacio y el equipo visible. La rutina se adaptará a ese contexto.";
+  }
+
+  return "Se reconoció el equipo visible, pero no se pudo identificar con claridad el espacio. La rutina se adaptará con base en lo disponible y en peso corporal.";
+}
+
+function getRoutineErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiClientError) {
+    if (typeof error.message === "string" && error.message.trim().length > 0) {
+      return error.message;
+    }
+  }
+
+  return error instanceof Error && error.message.trim().length > 0
+    ? error.message
+    : fallback;
+}
+
+async function showRoutineError(title: string, error: unknown, fallback: string) {
+  await Alert.fire({
+    icon: "error",
+    title,
+    text: getRoutineErrorMessage(error, fallback),
+  });
+}
+
 interface SpeechRecognitionResultLike {
   readonly isFinal: boolean;
   readonly 0: {
@@ -539,6 +571,7 @@ export default function Routine() {
     useState<InstructionDictationStatus>("idle");
   const [instructionTranscriptError, setInstructionTranscriptError] = useState<string | null>(null);
   const [liveTranscript, setLiveTranscript] = useState("");
+  const [clearingEnvironment, setClearingEnvironment] = useState(false);
   const timerIntervalRef = useRef<number | null>(null);
   const spokenTimerMarksRef = useRef<Set<number>>(new Set());
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -1251,22 +1284,30 @@ export default function Routine() {
   };
 
   const handleGenerate = async () => {
-    await withBusyState("generate", async () => {
-      const result = await api.post<RoutineMutationResponse>("/routines/generate", {
-        customInstructions: customInstructions.trim() || undefined,
-      });
+    try {
+      await withBusyState("generate", async () => {
+        const result = await api.post<RoutineMutationResponse>("/routines/generate", {
+          customInstructions: customInstructions.trim() || undefined,
+        });
 
-      setPendingReview({ routine: result.routine, version: result.version });
-      setCustomInstructions("");
+        setPendingReview({ routine: result.routine, version: result.version });
+        setCustomInstructions("");
 
-      await Alert.fire({
-        icon: "success",
-        title: "Rutina propuesta",
-        text: environmentAnalysis
-          ? `${result.message} Se tuvo en cuenta tu ultimo analisis visual del entorno.`
-          : result.message,
+        await Alert.fire({
+          icon: "success",
+          title: "Rutina propuesta",
+          text: environmentAnalysis
+            ? `${result.message} Se tuvo en cuenta tu ultimo reconocimiento visual del entorno.`
+            : result.message,
+        });
       });
-    });
+    } catch (error) {
+      await showRoutineError(
+        "No se pudo generar la rutina",
+        error,
+        "La rutina no pudo generarse. Revisa tu conexión y vuelve a intentarlo.",
+      );
+    }
   };
 
   const handleRegenerate = async () => {
@@ -1274,27 +1315,35 @@ export default function Routine() {
       return;
     }
 
-    await withBusyState("regenerate", async () => {
-      const result = await api.post<RoutineMutationResponse>(
-        `/routines/${routineDashboard.routine.id}/regenerate`,
-        {
-          reason: regenerateReason.trim() || undefined,
-          customInstructions: customInstructions.trim() || undefined,
-        },
-      );
+    try {
+      await withBusyState("regenerate", async () => {
+        const result = await api.post<RoutineMutationResponse>(
+          `/routines/${routineDashboard.routine.id}/regenerate`,
+          {
+            reason: regenerateReason.trim() || undefined,
+            customInstructions: customInstructions.trim() || undefined,
+          },
+        );
 
-      setPendingReview({ routine: result.routine, version: result.version });
-      setRegenerateReason("");
-      setCustomInstructions("");
+        setPendingReview({ routine: result.routine, version: result.version });
+        setRegenerateReason("");
+        setCustomInstructions("");
 
-      await Alert.fire({
-        icon: "success",
-        title: "Nueva versión propuesta",
-        text: environmentAnalysis
-          ? `${result.message} La regeneracion considero el entorno detectado en tu foto mas reciente.`
-          : result.message,
+        await Alert.fire({
+          icon: "success",
+          title: "Nueva versión propuesta",
+          text: environmentAnalysis
+            ? `${result.message} La regeneración consideró el reconocimiento visual más reciente.`
+            : result.message,
+        });
       });
-    });
+    } catch (error) {
+      await showRoutineError(
+        "No se pudo regenerar la rutina",
+        error,
+        "La rutina no pudo regenerarse. Revisa tu conexión y vuelve a intentarlo.",
+      );
+    }
   };
 
   const handleEnvironmentFileChange = async (
@@ -1340,7 +1389,7 @@ export default function Routine() {
       await Alert.fire({
         icon: "success",
         title: "Entorno analizado",
-        text: "El equipo detectado ya queda disponible para adaptar tus proximas rutinas.",
+        text: getEnvironmentConfirmationMessage(analysis),
       });
     } catch (error) {
       console.error("Failed to analyze environment image", error);
@@ -1357,20 +1406,68 @@ export default function Routine() {
     }
   };
 
+  const handleClearEnvironment = async () => {
+    const confirmation = await Alert.fire({
+      icon: "question",
+      title: "Eliminar reconocimiento guardado",
+      text: "La rutina se generará sin reconocimiento visual y se borrará el registro actual de tu entorno.",
+      showCancelButton: true,
+      confirmButtonText: "Eliminar",
+      cancelButtonText: "Cancelar",
+    });
+
+    if (!confirmation.isConfirmed) {
+      return;
+    }
+
+    setClearingEnvironment(true);
+
+    try {
+      await api.delete("/vision/environment/latest");
+      setEnvironmentAnalysis(null);
+
+      await Alert.fire({
+        icon: "success",
+        title: "Reconocimiento eliminado",
+        text: "Desde ahora la generación usará una base sin máquinas ni equipamiento confirmado.",
+      });
+    } catch (error) {
+      console.error("Failed to clear environment analysis", error);
+      await Alert.fire({
+        icon: "error",
+        title: "No se pudo eliminar el reconocimiento",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Revisa tu conexión y vuelve a intentarlo.",
+      });
+    } finally {
+      setClearingEnvironment(false);
+    }
+  };
+
   const handleApprove = async () => {
     if (!pendingReview) {
       return;
     }
 
-    await withBusyState("approve", async () => {
-      await api.post(`/routines/versions/${pendingReview.version.id}/approve`);
-      await refreshRoutineData();
-      await Alert.fire({
-        icon: "success",
-        title: "Rutina aprobada",
-        text: "La nueva versión ya quedó activa para tus próximas sesiones.",
+    try {
+      await withBusyState("approve", async () => {
+        await api.post(`/routines/versions/${pendingReview.version.id}/approve`);
+        await refreshRoutineData();
+        await Alert.fire({
+          icon: "success",
+          title: "Rutina aprobada",
+          text: "La nueva versión ya quedó activa para tus próximas sesiones.",
+        });
       });
-    });
+    } catch (error) {
+      await showRoutineError(
+        "No se pudo aprobar la rutina",
+        error,
+        "La rutina no pudo aprobarse. Revisa tu conexión y vuelve a intentarlo.",
+      );
+    }
   };
 
   const handleDiscard = async () => {
@@ -1378,15 +1475,23 @@ export default function Routine() {
       return;
     }
 
-    await withBusyState("discard", async () => {
-      await api.post(`/routines/versions/${pendingReview.version.id}/discard`);
-      await refreshRoutineData();
-      await Alert.fire({
-        icon: "info",
-        title: "Versión descartada",
-        text: "La propuesta pendiente fue descartada.",
+    try {
+      await withBusyState("discard", async () => {
+        await api.post(`/routines/versions/${pendingReview.version.id}/discard`);
+        await refreshRoutineData();
+        await Alert.fire({
+          icon: "info",
+          title: "Versión descartada",
+          text: "La propuesta pendiente fue descartada.",
+        });
       });
-    });
+    } catch (error) {
+      await showRoutineError(
+        "No se pudo descartar la rutina",
+        error,
+        "La propuesta no pudo descartarse. Revisa tu conexión y vuelve a intentarlo.",
+      );
+    }
   };
 
   const handleStartSession = async () => {
@@ -1416,38 +1521,46 @@ export default function Routine() {
       return;
     }
 
-    await withBusyState("start-session", async () => {
-      const session = await api.post<WorkoutSession>("/sessions", {
-        session_date: formatLocalIsoDate(),
-        routine_version_id: routineToday.version.id,
-        routine_day_id: routineToday.today.id,
-        notes: "",
+    try {
+      await withBusyState("start-session", async () => {
+        const session = await api.post<WorkoutSession>("/sessions", {
+          session_date: formatLocalIsoDate(),
+          routine_version_id: routineToday.version.id,
+          routine_day_id: routineToday.today.id,
+          notes: "",
+        });
+
+        setActiveSession(session);
+        setRecentSessions((current) => [session, ...current].slice(0, 10));
+        const initialProgress = normalizeGuidedProgress(getEmptyGuidedProgress(), dayExercises);
+        setGuidedProgress(initialProgress);
+        writeGuidedProgress(session.id, initialProgress);
+
+        if (voiceTimerEnabled) {
+          void playElevenLabsSpeech(
+            getStartSessionMessage({
+              exerciseCount: dayExercises.length,
+              totalSeries: totalSeriesCount,
+              firstExerciseName: dayExercises[0].exercise_name,
+              firstExerciseSets: getExerciseSeriesCount(dayExercises[0]),
+            }),
+            "session",
+          );
+        }
+
+        await Alert.fire({
+          icon: "success",
+          title: "Entrenamiento iniciado",
+          text: `Primer ejercicio: ${dayExercises[0].exercise_name}. Serie 1 de ${getExerciseSeriesCount(dayExercises[0])}.`,
+        });
       });
-
-      setActiveSession(session);
-      setRecentSessions((current) => [session, ...current].slice(0, 10));
-      const initialProgress = normalizeGuidedProgress(getEmptyGuidedProgress(), dayExercises);
-      setGuidedProgress(initialProgress);
-      writeGuidedProgress(session.id, initialProgress);
-
-      if (voiceTimerEnabled) {
-        void playElevenLabsSpeech(
-          getStartSessionMessage({
-            exerciseCount: dayExercises.length,
-            totalSeries: totalSeriesCount,
-            firstExerciseName: dayExercises[0].exercise_name,
-            firstExerciseSets: getExerciseSeriesCount(dayExercises[0]),
-          }),
-          "session",
-        );
-      }
-
-      await Alert.fire({
-        icon: "success",
-        title: "Entrenamiento iniciado",
-        text: `Primer ejercicio: ${dayExercises[0].exercise_name}. Serie 1 de ${getExerciseSeriesCount(dayExercises[0])}.`,
-      });
-    });
+    } catch (error) {
+      await showRoutineError(
+        "No se pudo iniciar el entrenamiento",
+        error,
+        "La sesión no pudo iniciarse. Revisa tu conexión y vuelve a intentarlo.",
+      );
+    }
   };
 
   const handleCompleteCurrentSeries = async () => {
@@ -1729,6 +1842,14 @@ export default function Routine() {
                     {analyzingEnvironment ? "Analizando imagen..." : "Subir foto del entorno"}
                   </span>
                 </label>
+                <button
+                  type="button"
+                  className="rt-btn rt-btn--ghost"
+                  onClick={handleClearEnvironment}
+                  disabled={!environmentAnalysis || analyzingEnvironment || clearingEnvironment}
+                >
+                  {clearingEnvironment ? "Eliminando..." : "Eliminar reconocimiento guardado"}
+                </button>
                 {environmentAnalysis ? (
                   <div className="rt-environment">
                     {environmentAnalysis.source_image_url ? (
@@ -1738,22 +1859,17 @@ export default function Routine() {
                         alt="Ultimo entorno analizado"
                       />
                     ) : null}
-                    <p className="rt-environment__summary">{environmentAnalysis.summary}</p>
-                    <div className="rt-day-preview__tags">
-                      {(environmentAnalysis.detected_equipment.length > 0
-                        ? environmentAnalysis.detected_equipment
-                        : ["peso corporal como base"]
-                      ).map((item) => (
-                        <span key={item}>{item}</span>
-                      ))}
-                    </div>
-                    {environmentAnalysis.detected_space_tags.length > 0 ? (
-                      <div className="rt-day-preview__tags">
-                        {environmentAnalysis.detected_space_tags.map((item) => (
-                          <span key={item}>{item}</span>
-                        ))}
-                      </div>
-                    ) : null}
+                    <p className="rt-environment__summary">
+                      Tu entorno de entrenamiento ha sido reconocido.
+                    </p>
+                    <p className="rt-environment__context">
+                      {environmentAnalysis.space_description ??
+                        "No se pudo identificar con claridad el tipo de espacio disponible."}
+                    </p>
+                    <p className="rt-environment__context">
+                      {environmentAnalysis.equipment_description ??
+                        "No se detectó equipamiento claro; se tomará como base el peso corporal y apoyos básicos."}
+                    </p>
                     <p className="rt-environment__context">
                       {environmentAnalysis.training_context}
                     </p>

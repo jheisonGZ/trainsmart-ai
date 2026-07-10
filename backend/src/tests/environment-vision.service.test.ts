@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   analyzeMyEnvironment,
+  clearMyEnvironmentAnalysis,
   getMyLatestEnvironmentAnalysis,
 } from '../services/environment-vision.service';
 import { createFakeSupabase } from './helpers/fakeSupabase';
@@ -73,4 +74,29 @@ test('latest environment analysis still resolves when signed URL generation fail
   assert.ok(result);
   assert.equal(result?.source_image_url, null);
   assert.deepEqual(result?.detected_equipment, ['mancuernas']);
+});
+
+test('clear environment analysis deletes stored records for the user', async () => {
+  const supabase = createFakeSupabase({
+    environment_analyses: [
+      {
+        id: 'env-1',
+        user_id: TEST_AUTH.userId,
+        source_image_path: 'environment-images/user/env-1/source.jpg',
+        source_image_content_type: 'image/jpeg',
+        ximilar_model: 'photo/tags/v2/tags',
+        detected_tags: [{ name: 'dumbbell', prob: 0.97 }],
+        detected_equipment: ['mancuernas'],
+        detected_space_tags: ['interior'],
+        summary: 'Resumen',
+        training_context: 'Contexto',
+        ximilar_response: {},
+        created_at: '2026-01-01T00:00:00.000Z',
+      },
+    ],
+  });
+
+  await clearMyEnvironmentAnalysis(supabase as never, TEST_AUTH);
+
+  assert.equal(supabase.tables.environment_analyses.length, 0);
 });

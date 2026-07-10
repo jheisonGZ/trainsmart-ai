@@ -37,6 +37,16 @@ export async function uploadVisionImage(
   throwIfStorageError(error, 'Failed to upload vision image.');
 }
 
+export async function deleteVisionImage(
+  supabase: RequestSupabaseClient,
+  bucket: string,
+  path: string,
+) {
+  const { error } = await supabase.storage.from(bucket).remove([path]);
+
+  throwIfStorageError(error, 'Failed to delete vision image.');
+}
+
 export async function createVisionImageSignedUrl(
   supabase: RequestSupabaseClient,
   bucket: string,

@@ -8,8 +8,9 @@ type SeedTables = Record<string, Array<Record<string, unknown>>>;
 class FakeQueryBuilder {
   private readonly tableName: string;
   private readonly tables: SeedTables;
-  private action: 'select' | 'insert' = 'select';
+  private action: 'select' | 'insert' | 'update' | 'delete' = 'select';
   private insertPayload: Array<Record<string, unknown>> = [];
+  private updatePayload: Record<string, unknown> = {};
   private filters: Array<{ field: string; value: unknown }> = [];
   private orderConfig: OrderConfig | null = null;
   private rowLimit: number | null = null;
@@ -22,6 +23,17 @@ class FakeQueryBuilder {
   insert(payload: Record<string, unknown> | Array<Record<string, unknown>>) {
     this.action = 'insert';
     this.insertPayload = Array.isArray(payload) ? payload : [payload];
+    return this;
+  }
+
+  update(payload: Record<string, unknown>) {
+    this.action = 'update';
+    this.updatePayload = payload;
+    return this;
+  }
+
+  delete() {
+    this.action = 'delete';
     return this;
   }
 
@@ -90,6 +102,26 @@ class FakeQueryBuilder {
       rows = rows.filter((row) => row[filter.field] === filter.value);
     }
 
+    if (this.action === 'delete') {
+      this.tables[this.tableName] = table.filter(
+        (row) => !this.filters.every((filter) => row[filter.field] === filter.value),
+      );
+      return [];
+    }
+
+    if (this.action === 'update') {
+      const updatedRows = table.map((row) =>
+        this.filters.every((filter) => row[filter.field] === filter.value)
+          ? { ...row, ...this.updatePayload }
+          : row,
+      );
+
+      this.tables[this.tableName] = updatedRows;
+      rows = updatedRows.filter((row) =>
+        this.filters.every((filter) => row[filter.field] === filter.value),
+      );
+    }
+
     if (this.orderConfig) {
       const { field, ascending } = this.orderConfig;
       rows.sort((left, right) => {
@@ -153,6 +185,10 @@ class FakeStorageBucket {
       size: buffer.length,
     });
 
+    return { error: null };
+  }
+
+  async remove(_paths: string[]) {
     return { error: null };
   }
 
