@@ -14,6 +14,8 @@ export interface CreateBodyProgressEntryPayload {
   quality_warnings: string[];
   body_focus_tags: string[];
   entry_summary: string;
+  posture_inferred: string | null;
+  visible_body_zones: string[];
   comparison_summary: string;
   comparison_notes: string;
   compared_to_entry_id: string | null;

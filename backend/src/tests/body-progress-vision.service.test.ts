@@ -81,6 +81,9 @@ test('body progress analysis saves entry and compares with previous snapshot', a
     assert.equal(result?.person_count, 1);
     assert.equal(result?.compared_to_entry_id, 'previous-entry');
     assert.match(result?.comparison_summary ?? '', /comparacion/i);
+    assert.ok(result?.posture_inferred, 'posture_inferred should be present');
+    assert.ok(Array.isArray(result?.visible_body_zones), 'visible_body_zones should be an array');
+    assert.ok(result?.change_summary, 'change_summary should be present');
     assert.equal(supabase.tables.body_progress_entries.length, 2);
     assert.equal(supabase.uploads.length, 1);
     assert.match(result?.source_image_url ?? '', /signed\.example/);

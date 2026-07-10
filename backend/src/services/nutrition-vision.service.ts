@@ -90,14 +90,16 @@ const FOOD_GROUP_RULES: Array<{ labels: string[]; output: string }> = [
   },
 ];
 
+const ALL_FOOD_GROUPS = ['proteina', 'carbohidratos', 'vegetales', 'fruta', 'grasas'] as const;
+
 function buildMealSummary(groups: string[], topTags: string[]) {
   if (groups.length === 0) {
-    return `No se detectaron componentes alimentarios claros. Tags visuales principales: ${
+    return `No se detectaron componentes alimentarios claros. Referencias visuales principales: ${
       topTags.join(', ') || 'sin tags relevantes'
     }.`;
   }
 
-  return `El plato parece incluir ${groups.join(', ')}. Tags visuales principales: ${
+  return `El plato parece incluir ${groups.join(', ')}. Referencias visuales principales: ${
     topTags.join(', ') || 'sin tags relevantes'
   }.`;
 }
@@ -126,6 +128,166 @@ function buildEducationalFeedback(groups: string[]) {
   }
 
   return `${notes.join(' ')} Usa esta lectura como orientacion visual aproximada, no como medicion clinica ni calorica.`;
+}
+
+function getMissingFoodGroups(groups: string[]) {
+  return ALL_FOOD_GROUPS.filter((group) => !groups.includes(group));
+}
+
+function buildBalanceAssessment(groups: string[]) {
+  if (groups.length === 0) {
+    return 'No se distingue un plato con suficiente claridad para evaluar su balance visual.';
+  }
+
+  const hasProtein = groups.includes('proteina');
+  const hasCarbs = groups.includes('carbohidratos');
+  const hasProduce = groups.includes('vegetales') || groups.includes('fruta');
+  const hasFat = groups.includes('grasas');
+
+  if (hasProtein && hasCarbs && hasProduce) {
+    return hasFat
+      ? 'El plato se ve visualmente balanceado: incluye proteina, energia, vegetales o fruta, y una fuente de grasa.'
+      : 'El plato se ve bastante balanceado: tiene proteina, energia y vegetales o fruta. Podrias revisar si falta una grasa saludable.';
+  }
+
+  if (hasProtein && hasCarbs && !hasProduce) {
+    return 'El plato tiene proteina y energia, pero le faltan vegetales o fruta para completar el balance visual.';
+  }
+
+  if (hasProtein && !hasCarbs && hasProduce) {
+    return 'Hay proteina y componentes frescos, pero no se aprecia una fuente clara de energia (carbohidratos).';
+  }
+
+  if (!hasProtein && hasCarbs && hasProduce) {
+    return 'Hay energia y vegetales o fruta, pero la fuente de proteina no es clara en la imagen.';
+  }
+
+  if (hasProtein && !hasCarbs && !hasProduce) {
+    return 'Solo se distingue claramente la proteina; faltan carbohidratos y vegetales o fruta para un plato mas completo.';
+  }
+
+  if (!hasProtein) {
+    return 'La foto no muestra una proteina clara; ese suele ser el punto mas importante a revisar.';
+  }
+
+  if (!hasProduce) {
+    return 'Hay proteina visible, pero faltan senales claras de vegetales o fruta para completar mejor el plato.';
+  }
+
+  return 'La composicion visual parece util, aunque aun puede afinarse mejor.';
+}
+
+function buildPortionEstimate(groups: string[]) {
+  if (groups.length >= 4) {
+    return 'porcion visual amplia';
+  }
+
+  if (groups.length === 3) {
+    return 'porcion visual media';
+  }
+
+  if (groups.length === 2) {
+    return 'porcion visual ligera a media';
+  }
+
+  return 'porcion visual dificil de estimar';
+}
+
+function buildProteinStrength(
+  tags: NutritionVisionTag[],
+  groups: string[],
+): string {
+  if (!groups.includes('proteina')) {
+    return 'No se detecta una fuente de proteina clara en el plato.';
+  }
+
+  const proteinLabels = [
+    'chicken', 'meat', 'beef', 'pork', 'fish', 'salmon', 'tuna',
+    'egg', 'eggs', 'seafood', 'shrimp', 'tofu', 'bean', 'beans',
+    'lentils', 'cheese', 'yogurt',
+  ];
+
+  const proteinTags = tags.filter((tag) =>
+    proteinLabels.includes(tag.name.toLowerCase()),
+  );
+
+  if (proteinTags.length === 0) {
+    return 'Se identifico el grupo de proteina, pero no hay detalle claro sobre la fuente.';
+  }
+
+  const avgProb =
+    proteinTags.reduce((sum, tag) => sum + tag.prob, 0) / proteinTags.length;
+
+  if (avgProb >= 0.85 && proteinTags.length >= 2) {
+    return 'La fuente de proteina se distingue con buena claridad en la imagen (porcion que parece adecuada).';
+  }
+
+  if (avgProb >= 0.7) {
+    return 'Se identifica una fuente de proteina con razonable claridad; la porcion visual parece moderada.';
+  }
+
+  return 'Hay indicios de proteina, pero la imagen no permite estimar la porcion con certeza.';
+}
+
+function buildPortionDetail(
+  groups: string[],
+  tags: NutritionVisionTag[],
+): string {
+  const totalRelevant = tags.filter((tag) => tag.prob >= 0.5).length;
+
+  if (groups.length === 0) {
+    return 'No se pueden estimar porciones sin componentes alimentarios claros.';
+  }
+
+  if (groups.length >= 4 && totalRelevant >= 6) {
+    return 'El plato muestra varios componentes con presencia notable; la porcion total parece completa.';
+  }
+
+  if (groups.length >= 3 && totalRelevant >= 4) {
+    return 'Hay varios componentes visibles con buena presencia; la porcion parece razonable.';
+  }
+
+  if (groups.length === 2) {
+    return 'El plato muestra pocos componentes; la porcion podria ser ligera o incompleta.';
+  }
+
+  return 'La porcion es dificil de estimar con precision a partir de la imagen.';
+}
+
+function buildPracticalTip(goal: string | null | undefined, groups: string[]) {
+  const missing = getMissingFoodGroups(groups);
+
+  switch (goal) {
+    case 'gain_muscle':
+      return groups.includes('proteina')
+        ? 'Para ganar músculo, la lectura visual va en buena dirección; revisa además que la proteína total del día sea suficiente.'
+        : 'Para ganar músculo, conviene añadir una fuente de proteína más clara en este plato.';
+    case 'lose_fat':
+      return groups.includes('proteina') && (groups.includes('vegetales') || groups.includes('fruta'))
+        ? 'Para perder grasa, esta combinación visual de proteína y componentes frescos se ve razonable; vigila también porciones y frecuencia.'
+        : 'Para perder grasa, ayudaría reforzar la proteína y sumar más vegetales visibles.';
+    case 'strength':
+      return groups.includes('proteina')
+        ? 'Para fuerza, procura que la comida muestre proteína clara y energía suficiente para sostener el entrenamiento.'
+        : 'Para fuerza, revisa si esta comida necesita una proteína más evidente y una base de energía más clara.';
+    case 'mobility':
+      return 'Para movilidad y bienestar, prioriza comidas sostenibles y fáciles de repetir con equilibrio visual.';
+    default:
+      return missing.length > 0
+        ? `Como orientación general, podrías reforzar ${missing.join(', ')} para que el plato se vea más completo.`
+        : 'Como orientación general, la lectura visual se ve bastante completa.';
+  }
+}
+
+function buildGenericPracticalTip(groups: string[]) {
+  if (groups.includes('proteina') && (groups.includes('vegetales') || groups.includes('fruta'))) {
+    return 'Como lectura general, el plato ya muestra una base útil; revisa solo si la porción total se ajusta a tu objetivo.';
+  }
+
+  const missing = getMissingFoodGroups(groups);
+  return missing.length > 0
+    ? `Como lectura general, podrías reforzar ${missing.join(', ')} para que el plato se vea más completo.`
+    : 'Como lectura general, el plato se ve bastante completo.';
 }
 
 function buildGoalAlignment(goal: string | null | undefined, groups: string[]) {
@@ -164,6 +326,18 @@ async function enrichMealAnalysis(
   return {
     ...analysis,
     source_image_url: signedUrl?.imageUrl ?? null,
+    balance_assessment: buildBalanceAssessment(analysis.detected_food_groups),
+    missing_components: getMissingFoodGroups(analysis.detected_food_groups),
+    portion_estimate: buildPortionEstimate(analysis.detected_food_groups),
+    protein_strength: analysis.protein_strength ?? buildProteinStrength(
+      analysis.detected_tags,
+      analysis.detected_food_groups,
+    ),
+    portion_detail: analysis.portion_detail ?? buildPortionDetail(
+      analysis.detected_food_groups,
+      analysis.detected_tags,
+    ),
+    practical_tip: buildGenericPracticalTip(analysis.detected_food_groups),
   };
 }
 
@@ -200,6 +374,8 @@ export async function analyzeMyMeal(
   const summary = buildMealSummary(detectedFoodGroups, topTags);
   const educationalFeedback = buildEducationalFeedback(detectedFoodGroups);
   const goalAlignment = buildGoalAlignment(profile?.goal, detectedFoodGroups);
+  const proteinStrength = buildProteinStrength(tags, detectedFoodGroups);
+  const portionDetail = buildPortionDetail(detectedFoodGroups, tags);
 
   await uploadVisionImage(
     supabase,
@@ -220,6 +396,8 @@ export async function analyzeMyMeal(
     summary,
     educational_feedback: educationalFeedback,
     goal_alignment: goalAlignment,
+    protein_strength: proteinStrength,
+    portion_detail: portionDetail,
     ximilar_response: ximilarResult,
   });
 

@@ -212,6 +212,16 @@
 
 .pg-btn--ghost:hover { border-color: var(--r); color: var(--r); background: transparent; }
 
+.pg-change-summary {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255,74,43,0.08);
+  border: 1px solid rgba(255,74,43,0.18);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: rgba(255,255,255,0.78);
+}
+
 @media (max-width: 900px) {
   .pg-cards { grid-template-columns: 1fr; }
   .pg-vision-grid { grid-template-columns: 1fr; }

@@ -15,6 +15,12 @@ export interface BodyProgressEntry {
   quality_warnings: string[];
   body_focus_tags: string[];
   entry_summary: string;
+  posture_inferred?: string;
+  visible_body_zones?: string[];
+  capture_quality?: string;
+  body_reading?: string;
+  change_summary?: string;
+  next_capture_tip?: string;
   comparison_summary: string;
   comparison_notes: string;
   compared_to_entry_id: string | null;

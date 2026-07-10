@@ -348,6 +348,7 @@ export default function Progress() {
                   />
                 ) : null}
                 <p>{mealLatest.summary}</p>
+                <p>{mealLatest.balance_assessment ?? "Balance visual no disponible."}</p>
                 <div className="pg-chip-list">
                   {(mealLatest.detected_food_groups.length > 0
                     ? mealLatest.detected_food_groups
@@ -356,8 +357,25 @@ export default function Progress() {
                     <span key={group}>{group}</span>
                   ))}
                 </div>
+                <p>
+                  Porcion visual: <strong>{mealLatest.portion_estimate ?? "sin estimacion"}</strong>
+                </p>
+                <p>
+                  Detalle de porcion: <strong>{mealLatest.portion_detail ?? "sin detalle"}</strong>
+                </p>
+                <p>
+                  Proteina: <strong>{mealLatest.protein_strength ?? "sin evaluacion"}</strong>
+                </p>
+                {mealLatest.missing_components?.length ? (
+                  <div className="pg-chip-list">
+                    {mealLatest.missing_components.map((item) => (
+                      <span key={item}>faltan {item}</span>
+                    ))}
+                  </div>
+                ) : null}
                 <p>{mealLatest.educational_feedback}</p>
                 <p>{mealLatest.goal_alignment}</p>
+                <p>{mealLatest.practical_tip ?? "Sin sugerencia adicional."}</p>
                 <div className="pg-list">
                   {mealHistory.map((item) => (
                     <span key={item.id}>
@@ -404,8 +422,24 @@ export default function Progress() {
                   />
                 ) : null}
                 <p>{bodyLatest.entry_summary}</p>
+                <p>
+                  Postura: <strong>{bodyLatest.posture_inferred ?? "no determinada"}</strong>
+                </p>
+                <p>{bodyLatest.capture_quality ?? "Calidad de captura no disponible."}</p>
+                <p>{bodyLatest.body_reading ?? "Lectura corporal no disponible."}</p>
+                {bodyLatest.visible_body_zones?.length ? (
+                  <div className="pg-chip-list">
+                    {bodyLatest.visible_body_zones.map((zone) => (
+                      <span key={zone}>{zone}</span>
+                    ))}
+                  </div>
+                ) : null}
                 <p>{bodyLatest.comparison_summary}</p>
+                {bodyLatest.change_summary ? (
+                  <p className="pg-change-summary">{bodyLatest.change_summary}</p>
+                ) : null}
                 <p>{bodyLatest.comparison_notes}</p>
+                <p>{bodyLatest.next_capture_tip ?? "Sin recomendacion adicional."}</p>
                 <div className="pg-chip-list">
                   {(bodyLatest.body_focus_tags.length > 0
                     ? bodyLatest.body_focus_tags

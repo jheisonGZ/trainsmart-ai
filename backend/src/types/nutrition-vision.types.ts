@@ -14,6 +14,12 @@ export interface MealAnalysis {
   summary: string;
   educational_feedback: string;
   goal_alignment: string;
+  balance_assessment?: string;
+  missing_components?: string[];
+  portion_estimate?: string;
+  protein_strength?: string;
+  portion_detail?: string;
+  practical_tip?: string;
   ximilar_response: unknown;
   created_at: string;
 }
