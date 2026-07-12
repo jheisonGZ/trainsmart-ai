@@ -7,26 +7,35 @@ import {
 } from '../integrations/ximilar/client';
 import {
   createBodyProgressEntry,
+  getBodyProgressEntryById,
+  getBodyProgressEntryImagePathById,
   getLatestBodyProgressEntryByUserId,
   listBodyProgressEntriesByUserId,
+  updateBodyProgressEntryComparison,
 } from '../repositories/body-progress-vision.repository';
+import { NotFoundError } from '../utils/api-response';
 import type { RequestSupabaseClient } from '../lib/supabase/request';
 import type { AuthUser } from '../types/auth.types';
 import type {
+  BodyCategoryComparison,
+  BodyCategoryKey,
+  BodyCategoryTrend,
+  BodyChangeLevel,
   BodyProgressEntry,
   BodyProgressEntryResponse,
   BodyProgressVisionTag,
+  SamePersonCheck,
 } from '../types/body-progress-vision.types';
+import { compareBodyProgressWithVisionLLM } from '../lib/visionLlm';
 import {
   buildVisionImageStoragePath,
   createVisionImageSignedUrlSafely,
+  downloadVisionImageAsBase64,
   uploadVisionImage,
 } from './visionImageStorage.service';
 import {
-  getTopTagNames,
   normalizeAndSortVisionTags,
   parseImageDataUrl,
-  pickOutputsFromRules,
 } from './visionShared.service';
 import type { AnalyzeBodyProgressInput } from '../validators/body-progress-vision.schemas';
 import { logger } from '../lib/logger';
@@ -39,133 +48,8 @@ const NOISE_TAGS = new Set([
   'illustration', 'drawing', 'painting', 'sketch', 'art',
 ]);
 
-const MUSCLE_SIGNALS = new Set([
-  'muscle', 'muscles', 'bodybuilder', 'bicep', 'biceps',
-  'abs', 'abdomen', 'sixpack', 'definition', 'defined',
-  'toned', 'toned body', 'vascular', 'ripped', 'shredded',
-  'deltoid', 'trapezius', 'lat', 'pectorals', 'chest',
-  'shoulder', 'arm', 'tricep', 'quadricep', 'calves',
-  'back', 'glutes', 'glute',
-]);
-
-const WEIGHT_SIGNALS = new Set([
-  'fat', 'weight', 'overweight', 'obese', 'belly', 'big',
-  'large', 'heavy', 'wide', 'round', 'stomach',
-]);
-
-const LEAN_SIGNALS = new Set([
-  'lean', 'thin', 'slim', 'skinny', 'fit body', 'toned',
-  'defined', 'vascular', 'shredded', 'ripped',
-]);
-
-interface BodySignals {
-  muscle: number;
-  weight: number;
-  lean: number;
-  total: number;
-}
-
-function computeBodySignals(tags: BodyProgressVisionTag[]): BodySignals {
-  let muscle = 0;
-  let weight = 0;
-  let lean = 0;
-
-  for (const tag of tags) {
-    const name = tag.name.toLowerCase();
-    if (MUSCLE_SIGNALS.has(name)) muscle += tag.prob;
-    if (WEIGHT_SIGNALS.has(name)) weight += tag.prob;
-    if (LEAN_SIGNALS.has(name)) lean += tag.prob;
-  }
-
-  const total = muscle + weight + lean;
-  return { muscle, weight, lean, total };
-}
-
-function buildPhysicalTrend(
-  currentSignals: BodySignals,
-  previousEntry: BodyProgressEntry | null,
-  currentTags: BodyProgressVisionTag[],
-): string | null {
-  if (!previousEntry) {
-    return null;
-  }
-
-  const prevSignals = computeBodySignals(previousEntry.detected_tags);
-
-  if (currentSignals.total < 0.3 && prevSignals.total < 0.3) {
-    return 'Las señales corporales detectadas son débiles en ambas fotos; la comparación física es poco confiable con estas imágenes.';
-  }
-
-  if (currentSignals.total < 0.3) {
-    return 'La foto actual no muestra señales corporales suficientes para evaluar cambios físicos con respecto a la anterior.';
-  }
-
-  if (prevSignals.total < 0.3) {
-    return 'La foto anterior no tenía señales corporales claras; esta foto sirve como nueva referencia base.';
-  }
-
-  const currentBalance = currentSignals.muscle - currentSignals.weight;
-  const prevBalance = prevSignals.muscle - prevSignals.weight;
-  const diff = currentBalance - prevBalance;
-
-  if (diff > 0.5) {
-    return 'Señal de mejora física: se detectan más señales de tono muscular y menos señales de peso en comparación con la foto anterior.';
-  }
-
-  if (diff < -0.5) {
-    return 'Señal de cambio físico: se detectan más señales de peso y menos tono muscular en comparación con la foto anterior.';
-  }
-
-  if (Math.abs(diff) <= 0.2) {
-    return 'Las señales físicas son bastante similares a la foto anterior; no se aprecia un cambio significativo en esta comparación visual.';
-  }
-
-  return 'Hay cambios leves en las señales físicas detectadas, pero la diferencia no es lo suficientemente clara como para sacar conclusiones.';
-}
-
-function buildBodyReadingFromSignals(
-  personCount: number,
-  signals: BodySignals,
-  bodyFocusTags: string[],
-  previous: BodyProgressEntry | null,
-) {
-  if (personCount === 0) {
-    return 'No se puede hacer una lectura corporal confiable con esta foto.';
-  }
-
-  if (personCount > 1) {
-    return 'Hay más de una persona en la imagen, así que la lectura corporal queda limitada.';
-  }
-
-  const parts: string[] = [];
-
-  if (signals.muscle > 0.6) {
-    parts.push('Se detectan señales claras de tono y definición muscular.');
-  } else if (signals.muscle > 0.3) {
-    parts.push('Se detectan algunas señales de tono muscular.');
-  }
-
-  if (signals.weight > 0.6) {
-    parts.push('Se detectan señales predominantes de peso corporal elevado.');
-  } else if (signals.weight > 0.3) {
-    parts.push('Se detectan algunas señales de peso corporal.');
-  }
-
-  if (signals.lean > 0.3) {
-    parts.push('Se detectan señales de complexión delgada o definida.');
-  }
-
-  if (bodyFocusTags.includes('zonas corporales visibles')) {
-    parts.push('Las zonas corporales son lo suficientemente visibles para servir como referencia de seguimiento.');
-  }
-
-  if (parts.length === 0) {
-    return previous
-      ? 'Las señales corporales en esta foto son poco específicas. Para mejores lecturas, intenta una foto con mejor iluminación y el cuerpo más visible.'
-      : 'Las señales corporales son poco específicas; la foto funciona como referencia base, pero fotos con mejor iluminación y encuadre darán mejores lecturas.';
-  }
-
-  return parts.join(' ');
+function filterNoiseTags(tags: BodyProgressVisionTag[]): BodyProgressVisionTag[] {
+  return tags.filter((tag) => !NOISE_TAGS.has(tag.name.toLowerCase()));
 }
 
 const BODY_FOCUS_RULES: Array<{ labels: string[]; output: string; minProb?: number }> = [
@@ -174,26 +58,6 @@ const BODY_FOCUS_RULES: Array<{ labels: string[]; output: string; minProb?: numb
   { labels: ['exercise', 'gym'], output: 'contexto de entrenamiento' },
   { labels: ['arm', 'shoulder', 'back', 'leg', 'chest', 'torso'], output: 'zonas corporales visibles' },
 ];
-
-const POSTURE_RULES: Array<{ labels: string[]; output: string }> = [
-  { labels: ['front', 'frontal', 'standing', 'straight'], output: 'frontal' },
-  { labels: ['side', 'lateral', 'profile'], output: 'lateral' },
-  { labels: ['back', 'posterior', 'rear'], output: 'posterior' },
-  { labels: ['flexing', 'pose'], output: 'pose' },
-];
-
-const BODY_ZONE_RULES: Array<{ labels: string[]; output: string }> = [
-  { labels: ['chest', 'torso', 'pectoral', 'breast'], output: 'torso' },
-  { labels: ['arm', 'bicep', 'shoulder', 'tricep', 'deltoid'], output: 'brazos' },
-  { labels: ['leg', 'thigh', 'calf', 'quadricep'], output: 'piernas' },
-  { labels: ['back', 'lat', 'trapezius', 'posterior'], output: 'espalda' },
-  { labels: ['abdomen', 'abs', 'stomach', 'core', 'waist'], output: 'abdomen' },
-  { labels: ['glute', 'buttock', 'hip'], output: 'gluteos' },
-];
-
-function filterNoiseTags(tags: BodyProgressVisionTag[]): BodyProgressVisionTag[] {
-  return tags.filter((tag) => !NOISE_TAGS.has(tag.name.toLowerCase()));
-}
 
 function pickOutputsFromRulesWithMinProb(
   tags: BodyProgressVisionTag[],
@@ -216,133 +80,12 @@ function pickOutputsFromRulesWithMinProb(
   return [...new Set(result)];
 }
 
-function buildQualityWarnings(personCount: number, topTags: string[], previousExists: boolean) {
-  const warnings: string[] = [];
-
-  if (personCount === 0) {
-    warnings.push('No se detecto una persona con claridad; la comparacion visual puede ser poco confiable.');
-  }
-
-  if (personCount > 1) {
-    warnings.push('Se detectaron varias personas; intenta usar una foto individual para mejorar el seguimiento.');
-  }
-
-  const hasPersonTag = topTags.some((tag) =>
-    ['person', 'man', 'woman'].includes(tag.toLowerCase()),
-  );
-  if (!hasPersonTag) {
-    warnings.push('El encuadre no resalta claramente el cuerpo completo o principal.');
-  }
-
-  if (!previousExists) {
-    warnings.push('Este es tu primer registro visual; aun no existe una referencia anterior para comparar.');
-  }
-
-  return warnings;
-}
-
-function buildEntrySummary(personCount: number, bodyFocusTags: string[], topTags: string[]) {
-  const personText =
-    personCount > 0
-      ? `Se detecta ${personCount === 1 ? 'una persona principal' : `${personCount} personas`}.`
-      : 'No se detecta una persona con claridad.';
-
-  const focusText =
-    bodyFocusTags.length > 0
-      ? `El registro resalta ${bodyFocusTags.join(', ')}.`
-      : 'El registro no aporta suficientes senales corporales especificas.';
-
-  const relevantTags = filterNoiseTags(topTags.map((name) => ({ name, prob: 1 }))).map((t) => t.name);
-  const tagsText = relevantTags.length > 0
-    ? `Referencias visuales: ${relevantTags.join(', ')}.`
-    : '';
-
-  return `${personText} ${focusText} ${tagsText}`.trim();
-}
-
-function buildCaptureQuality(
-  personCount: number,
-  bodyFocusTags: string[],
-  previousExists: boolean,
-) {
-  if (personCount === 0) {
-    return 'Calidad baja: no se distingue una persona con claridad.';
-  }
-
-  if (personCount > 1) {
-    return 'Calidad limitada: aparecen varias personas y la comparacion pierde precision.';
-  }
-
-  if (bodyFocusTags.length === 0) {
-    return previousExists
-      ? 'Calidad aceptable, pero la lectura sigue siendo bastante general.'
-      : 'Calidad aceptable como primer punto de partida.';
-  }
-
-  if (bodyFocusTags.includes('zonas corporales visibles')) {
-    return 'Calidad buena: se distinguen zonas del cuerpo que facilitan el seguimiento visual.';
-  }
-
-  return 'Calidad razonable: sirve como referencia visual aproximada.';
-}
-
-function buildNextCaptureTip(
-  personCount: number,
-  bodyFocusTags: string[],
-  previousExists: boolean,
-) {
-  if (personCount === 0) {
-    return 'Intenta una foto frontal, con el cuerpo completo, mejor luz y sin objetos que tapen el torso.';
-  }
-
-  if (personCount > 1) {
-    return 'Usa una foto individual para que la comparacion sea mas precisa.';
-  }
-
-  if (!previousExists) {
-    return 'Esta foto quedara como referencia inicial; procura repetir angulo, distancia y ropa en el siguiente registro.';
-  }
-
-  if (bodyFocusTags.length === 0) {
-    return 'Para comparar mejor, repite la misma postura, angulo y distancia en la proxima foto.';
-  }
-
-  return 'Mantén el mismo angulo, luz, distancia y postura para que la siguiente comparacion sea mas consistente.';
-}
-
-function buildComparisonSummary(
-  currentTags: BodyProgressVisionTag[],
-  previous: BodyProgressEntry | null,
-  currentBodyFocusTags: string[],
-) {
-  if (!previous) {
-    return 'Se creo un punto de partida visual. Las siguientes fotos permitiran una comparacion aproximada de cambios.';
-  }
-
-  const prevTagNames = new Set(previous.detected_tags.map((tag) => tag.name.toLowerCase()));
-  const currentTagNames = currentTags.map((tag) => tag.name.toLowerCase());
-  const overlapCount = currentTagNames.filter((tag) => prevTagNames.has(tag)).length;
-  const overlapRatio =
-    currentTagNames.length > 0 ? overlapCount / currentTagNames.length : 0;
-
-  if (overlapRatio >= 0.5) {
-    return 'El encuadre visual parece relativamente consistente con el registro anterior. La comparacion es util como seguimiento aproximado, no clinico.';
-  }
-
-  if (overlapRatio < 0.2) {
-    return 'La comparacion con el registro anterior es limitada; los encuadres o condiciones son muy diferentes. Intenta repetir la misma postura y angulo.';
-  }
-
-  return 'La comparacion con el registro anterior esta parcialmente limitada por diferencias en encuadre, postura o iluminacion.';
-}
-
-function buildComparisonNotes(qualityWarnings: string[]) {
-  if (qualityWarnings.length === 0) {
-    return 'Mantén mismo angulo, iluminacion y distancia para que la siguiente comparacion sea mas estable.';
-  }
-
-  return `${qualityWarnings.join(' ')} Procura repetir angulo, postura, ropa e iluminacion en el proximo registro.`;
-}
+const POSTURE_RULES: Array<{ labels: string[]; output: string }> = [
+  { labels: ['front', 'frontal', 'standing', 'straight'], output: 'frontal' },
+  { labels: ['side', 'lateral', 'profile'], output: 'lateral' },
+  { labels: ['back', 'posterior', 'rear'], output: 'posterior' },
+  { labels: ['flexing', 'pose'], output: 'pose' },
+];
 
 function buildPostureInferred(tags: BodyProgressVisionTag[]): string {
   const tagNames = tags.map((tag) => tag.name.toLowerCase());
@@ -368,6 +111,15 @@ function buildPostureInferred(tags: BodyProgressVisionTag[]): string {
   return 'no determinada';
 }
 
+const BODY_ZONE_RULES: Array<{ labels: string[]; output: string }> = [
+  { labels: ['chest', 'torso', 'pectoral', 'breast'], output: 'torso' },
+  { labels: ['arm', 'bicep', 'shoulder', 'tricep', 'deltoid'], output: 'brazos' },
+  { labels: ['leg', 'thigh', 'calf', 'quadricep'], output: 'piernas' },
+  { labels: ['back', 'lat', 'trapezius', 'posterior'], output: 'espalda' },
+  { labels: ['abdomen', 'abs', 'stomach', 'core', 'waist'], output: 'abdomen' },
+  { labels: ['glute', 'buttock', 'hip'], output: 'gluteos' },
+];
+
 function buildVisibleBodyZones(tags: BodyProgressVisionTag[]): string[] {
   const tagNames = tags.map((tag) => tag.name.toLowerCase());
   const zones: string[] = [];
@@ -381,73 +133,293 @@ function buildVisibleBodyZones(tags: BodyProgressVisionTag[]): string[] {
   return [...new Set(zones)];
 }
 
-function buildChangeSummary(
-  currentBodyFocusTags: string[],
-  previous: BodyProgressEntry | null,
+const CATEGORY_LABELS: Record<BodyCategoryKey, string> = {
+  definicion_muscular: 'la definición muscular',
+  volumen_muscular: 'el volumen muscular aparente',
+  abdomen: 'el abdomen',
+  brazos: 'los brazos',
+  hombros: 'los hombros',
+  pecho: 'el pecho',
+  espalda: 'la espalda',
+  piernas: 'las piernas',
+  postura: 'la postura',
+  simetria: 'la simetría corporal',
+};
+
+const PHYSICAL_CATEGORY_TAG_RULES: Record<
+  Exclude<BodyCategoryKey, 'postura' | 'simetria'>,
+  string[]
+> = {
+  definicion_muscular: ['definition', 'defined', 'vascular', 'ripped', 'shredded', 'toned', 'sixpack', 'lean', 'cut'],
+  volumen_muscular: ['muscle', 'muscles', 'bodybuilder', 'bicep', 'biceps', 'bulk', 'mass', 'muscular', 'bulky'],
+  abdomen: ['abs', 'abdomen', 'stomach', 'core', 'waist', 'sixpack', 'belly'],
+  brazos: ['arm', 'bicep', 'biceps', 'tricep', 'triceps', 'forearm'],
+  hombros: ['shoulder', 'shoulders', 'deltoid', 'deltoids'],
+  pecho: ['chest', 'pectoral', 'pectorals', 'pecs', 'torso'],
+  espalda: ['back', 'lat', 'lats', 'trapezius'],
+  piernas: ['leg', 'legs', 'thigh', 'thighs', 'calf', 'calves', 'quadricep', 'quadriceps', 'hamstring'],
+};
+
+const PHYSICAL_CATEGORY_KEYS = Object.keys(PHYSICAL_CATEGORY_TAG_RULES) as Array<
+  Exclude<BodyCategoryKey, 'postura' | 'simetria'>
+>;
+
+function computeCategorySignal(tags: BodyProgressVisionTag[], labels: string[]): number {
+  return tags
+    .filter((tag) => labels.includes(tag.name.toLowerCase()))
+    .reduce((sum, tag) => sum + tag.prob, 0);
+}
+
+function trendFromDiff(diff: number): BodyCategoryTrend {
+  if (diff >= 0.45) return 'incremento';
+  if (diff >= 0.15) return 'incremento_leve';
+  if (diff <= -0.45) return 'reduccion';
+  if (diff <= -0.15) return 'reduccion_leve';
+  return 'sin_cambio';
+}
+
+function capitalize(text: string) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function categoryNote(category: BodyCategoryKey, trend: BodyCategoryTrend): string {
+  const label = CATEGORY_LABELS[category];
+
+  switch (trend) {
+    case 'incremento':
+      return `Se aprecia un aumento visual notable en ${label} respecto al registro anterior.`;
+    case 'incremento_leve':
+      return `${capitalize(label)} muestra un ligero incremento visual respecto al registro anterior.`;
+    case 'reduccion':
+      return `Se aprecia una reducción visual notable en ${label} respecto al registro anterior.`;
+    case 'reduccion_leve':
+      return `Se aprecia una ligera reducción visual en ${label} respecto al registro anterior.`;
+    case 'no_visible':
+      return `${capitalize(label)} no se distingue con claridad en una o ambas fotos, asi que no se pudo comparar.`;
+    case 'sin_cambio':
+    default:
+      return `No se aprecian cambios visuales claros en ${label}.`;
+  }
+}
+
+function buildPhysicalCategoryComparison(
   currentTags: BodyProgressVisionTag[],
-  currentSignals: BodySignals,
+  previousTags: BodyProgressVisionTag[],
+): Record<Exclude<BodyCategoryKey, 'postura' | 'simetria'>, BodyCategoryComparison> {
+  const result = {} as Record<Exclude<BodyCategoryKey, 'postura' | 'simetria'>, BodyCategoryComparison>;
+
+  for (const category of PHYSICAL_CATEGORY_KEYS) {
+    const labels = PHYSICAL_CATEGORY_TAG_RULES[category];
+    const currentSignal = computeCategorySignal(currentTags, labels);
+    const previousSignal = computeCategorySignal(previousTags, labels);
+    const visible = currentSignal > 0 && previousSignal > 0;
+
+    const trend = visible ? trendFromDiff(currentSignal - previousSignal) : 'no_visible';
+
+    result[category] = {
+      visible,
+      trend,
+      note: categoryNote(category, trend),
+    };
+  }
+
+  return result;
+}
+
+function comparePosture(currentPosture: string, previousPosture: string | undefined): BodyCategoryComparison {
+  const prev = previousPosture ?? 'no determinada';
+
+  if (currentPosture === 'no determinada' || prev === 'no determinada') {
+    return {
+      visible: false,
+      trend: 'no_visible',
+      note: 'El ángulo o postura no se distingue con claridad en una o ambas fotos.',
+    };
+  }
+
+  if (currentPosture === prev) {
+    return {
+      visible: true,
+      trend: 'sin_cambio',
+      note: `El ángulo de la foto (${currentPosture}) es consistente con el registro anterior, lo que favorece la comparación.`,
+    };
+  }
+
+  return {
+    visible: true,
+    trend: 'sin_cambio',
+    note: `El ángulo de esta foto (${currentPosture}) difiere del registro anterior (${prev}); no es posible evaluar cambios de postura corporal (por ejemplo, más o menos erguida) de forma confiable solo con el etiquetado visual disponible.`,
+  };
+}
+
+function buildSymmetryComparison(): BodyCategoryComparison {
+  return {
+    visible: false,
+    trend: 'no_visible',
+    note: 'La simetría corporal no se puede evaluar de forma confiable solo con el etiquetado visual genérico disponible; se necesitaría un análisis de pose mas detallado.',
+  };
+}
+
+function buildCategoryComparison(
+  currentTags: BodyProgressVisionTag[],
+  currentPosture: string,
+  previous: BodyProgressEntry,
+): Record<BodyCategoryKey, BodyCategoryComparison> {
+  const physical = buildPhysicalCategoryComparison(currentTags, previous.detected_tags);
+
+  return {
+    ...physical,
+    postura: comparePosture(currentPosture, previous.posture_inferred),
+    simetria: buildSymmetryComparison(),
+  };
+}
+
+function buildOverallChangeLevel(
+  categoryComparison: Record<BodyCategoryKey, BodyCategoryComparison>,
+): BodyChangeLevel {
+  const visibleTrends = PHYSICAL_CATEGORY_KEYS.map((key) => categoryComparison[key]).filter(
+    (comparison) => comparison.visible,
+  );
+
+  if (visibleTrends.length === 0) {
+    return 'leve';
+  }
+
+  const notableCount = visibleTrends.filter(
+    (c) => c.trend === 'incremento' || c.trend === 'reduccion',
+  ).length;
+  const lightCount = visibleTrends.filter(
+    (c) => c.trend === 'incremento_leve' || c.trend === 'reduccion_leve',
+  ).length;
+
+  if (notableCount >= 2) {
+    return 'alto';
+  }
+
+  if (notableCount === 1 || lightCount >= 3) {
+    return 'moderado';
+  }
+
+  return 'leve';
+}
+
+function buildObservations(categoryComparison: Record<BodyCategoryKey, BodyCategoryComparison>): string[] {
+  const keysToReport: BodyCategoryKey[] = [...PHYSICAL_CATEGORY_KEYS, 'postura'];
+
+  return keysToReport
+    .map((key) => categoryComparison[key])
+    .filter((c) => c.visible && c.trend !== 'sin_cambio')
+    .map((c) => c.note);
+}
+
+function buildProgressSummary(
+  isBaseline: boolean,
+  changeLevel: BodyChangeLevel,
+  categoryComparison: Record<BodyCategoryKey, BodyCategoryComparison>,
+): string {
+  if (isBaseline) {
+    return 'Se creo tu punto de referencia inicial para el seguimiento visual corporal. A partir del proximo registro podras ver una comparacion aproximada de cambios.';
+  }
+
+  const changedLabels = PHYSICAL_CATEGORY_KEYS.filter((key) => {
+    const c = categoryComparison[key];
+    return c.visible && c.trend !== 'sin_cambio';
+  }).map((key) => CATEGORY_LABELS[key]);
+
+  if (changedLabels.length === 0) {
+    return 'No se detectan cambios visuales relevantes respecto al registro anterior; el fisico se ve bastante consistente.';
+  }
+
+  return `Se detecta un nivel de cambio ${changeLevel} respecto al registro anterior, con variaciones visuales principalmente en ${changedLabels.join(', ')}.`;
+}
+
+function buildReliabilityWarning(
+  currentTags: BodyProgressVisionTag[],
+  currentPosture: string,
+  previous: BodyProgressEntry | null,
 ): string | null {
   if (!previous) {
     return null;
   }
 
-  const physicalTrend = buildPhysicalTrend(currentSignals, previous, currentTags);
+  const prevTagNames = new Set(previous.detected_tags.map((tag) => tag.name.toLowerCase()));
+  const currentNames = currentTags.map((tag) => tag.name.toLowerCase());
+  const overlap = currentNames.filter((name) => prevTagNames.has(name)).length;
+  const ratio = currentNames.length > 0 ? overlap / currentNames.length : 0;
 
-  const prevFocusSet = new Set(previous.body_focus_tags);
-  const newFocusTags = currentBodyFocusTags.filter((tag) => !prevFocusSet.has(tag));
-  const lostFocusTags = previous.body_focus_tags.filter(
-    (tag) => !currentBodyFocusTags.includes(tag),
-  );
+  const postureDiffers =
+    previous.posture_inferred &&
+    previous.posture_inferred !== 'no determinada' &&
+    currentPosture !== 'no determinada' &&
+    previous.posture_inferred !== currentPosture;
 
-  const prevTagNames = new Set(previous.detected_tags.map((t) => t.name.toLowerCase()));
-  const currentFiltered = filterNoiseTags(currentTags);
-  const newVisualTags = currentFiltered
-    .map((t) => t.name.toLowerCase())
-    .filter((name) => !prevTagNames.has(name));
-  const lostVisualTags = [...prevTagNames]
-    .filter((name) => !NOISE_TAGS.has(name))
-    .filter((name) => !currentTags.some((t) => t.name.toLowerCase() === name));
-
-  const notes: string[] = [];
-
-  if (physicalTrend) {
-    notes.push(physicalTrend);
+  if (ratio < 0.2 || postureDiffers) {
+    return 'Las condiciones entre esta foto y la anterior parecen distintas (angulo, iluminacion, ropa o postura). La comparacion puede perder precision.';
   }
 
-  if (newFocusTags.length > 0) {
-    notes.push(`Cambios en señales detectadas: ${newFocusTags.join(', ')}`);
+  if (ratio < 0.45) {
+    return 'Hay algunas diferencias de encuadre o condiciones respecto a la foto anterior; la comparacion es aproximada.';
   }
 
-  if (lostFocusTags.length > 0) {
-    notes.push(`Señales que ya no aparecen: ${lostFocusTags.join(', ')}`);
-  }
-
-  if (newVisualTags.length > 0) {
-    notes.push(`Nuevas referencias visuales: ${newVisualTags.slice(0, 3).join(', ')}`);
-  }
-
-  if (lostVisualTags.length > 0) {
-    notes.push(`Referencias previas que ya no aparecen: ${lostVisualTags.slice(0, 3).join(', ')}`);
-  }
-
-  if (notes.length === 0) {
-    return 'La imagen es bastante consistente con el registro anterior; los cambios visuales son minimos.';
-  }
-
-  return notes.join('. ') + '. Ten en cuenta que esta comparacion es aproximada y no clinica.';
+  return null;
 }
+
+function buildSamePersonCheck(
+  personDetectionAvailable: boolean,
+  currentPersonCount: number,
+  previousPersonCount: number,
+): { check: SamePersonCheck; note: string } {
+  if (currentPersonCount === 0) {
+    return {
+      check: 'sin_persona_detectada',
+      note: 'No se detecto una persona con claridad en esta foto; no fue posible verificar nada respecto al registro anterior.',
+    };
+  }
+
+  if (currentPersonCount > 1 || previousPersonCount > 1) {
+    return {
+      check: 'personas_multiples',
+      note: 'Se detecto mas de una persona en alguna de las fotos; usa una foto individual para que la verificacion sea mas confiable.',
+    };
+  }
+
+  if (!personDetectionAvailable) {
+    return {
+      check: 'no_disponible',
+      note: 'La verificacion de identidad de Ximilar no esta disponible en este plan/cuenta; solo se confirma que hay una persona presente en la foto, no que sea biometricamente la misma persona.',
+    };
+  }
+
+  return {
+    check: 'consistente',
+    note: 'Se detecto una persona en ambas fotos. Esta verificacion se basa en presencia de persona, no en reconocimiento facial biometrico (Ximilar no ofrece esa capacidad en este plan).',
+  };
+}
+
+const NEXT_CAPTURE_RECOMMENDATIONS = [
+  'Usa el mismo angulo y distancia de camara que en tu registro anterior.',
+  'Repite ropa similar y ajustada, y un tipo de iluminacion parecido.',
+  'Manten una postura relajada y natural, similar a la de tus fotos previas.',
+];
+
+const MEASUREMENT_DISCLAIMER =
+  'Esta comparacion es unicamente una lectura visual aproximada y educativa. No calcula porcentaje de grasa corporal, masa muscular ni medidas fisicas reales, y no reemplaza una evaluacion profesional.';
 
 async function detectPeopleWithFallback(base64Payload: string) {
   try {
-    return await detectPeopleWithXimilar({ imageBase64: base64Payload });
+    const result = await detectPeopleWithXimilar({ imageBase64: base64Payload });
+    return { result, available: true };
   } catch (error) {
     logger.warn('Ximilar person detection unavailable. Falling back to generic tagging only.', {
       error,
     });
 
     return {
-      status: { code: 200, text: 'FALLBACK' },
-      records: [{ _objects: [] }],
+      result: {
+        status: { code: 200, text: 'FALLBACK' },
+        records: [{ _objects: [] }],
+      },
+      available: false,
     };
   }
 }
@@ -460,35 +432,29 @@ async function enrichBodyProgressEntry(
     return null;
   }
 
-  const signedUrl = await createVisionImageSignedUrlSafely(
-    supabase,
-    env.SUPABASE_BODY_PROGRESS_IMAGES_BUCKET,
-    entry.source_image_path,
-  );
+  const [signedUrl, comparedImagePath] = await Promise.all([
+    createVisionImageSignedUrlSafely(
+      supabase,
+      env.SUPABASE_BODY_PROGRESS_IMAGES_BUCKET,
+      entry.source_image_path,
+    ),
+    entry.compared_to_entry_id
+      ? getBodyProgressEntryImagePathById(supabase, entry.compared_to_entry_id)
+      : Promise.resolve(null),
+  ]);
+
+  const comparedSignedUrl = comparedImagePath
+    ? await createVisionImageSignedUrlSafely(
+        supabase,
+        env.SUPABASE_BODY_PROGRESS_IMAGES_BUCKET,
+        comparedImagePath,
+      )
+    : null;
 
   return {
     ...entry,
     source_image_url: signedUrl?.imageUrl ?? null,
-    posture_inferred: entry.posture_inferred ?? buildPostureInferred(entry.detected_tags),
-    visible_body_zones: entry.visible_body_zones?.length
-      ? entry.visible_body_zones
-      : buildVisibleBodyZones(entry.detected_tags),
-    capture_quality: buildCaptureQuality(
-      entry.person_count,
-      entry.body_focus_tags,
-      Boolean(entry.compared_to_entry_id),
-    ),
-    body_reading: buildBodyReadingFromSignals(
-      entry.person_count,
-      computeBodySignals(entry.detected_tags),
-      entry.body_focus_tags,
-      null,
-    ),
-    next_capture_tip: buildNextCaptureTip(
-      entry.person_count,
-      entry.body_focus_tags,
-      Boolean(entry.compared_to_entry_id),
-    ),
+    compared_to_image_url: comparedSignedUrl?.imageUrl ?? null,
   };
 }
 
@@ -514,7 +480,7 @@ export async function analyzeMyBodyProgress(
     entryId,
     extension,
   );
-  const [taggingResult, personResult, previousEntry] = await Promise.all([
+  const [taggingResult, personDetection, previousEntry] = await Promise.all([
     analyzeImageTagsWithXimilar({ imageBase64: base64Payload }),
     detectPeopleWithFallback(base64Payload),
     getLatestBodyProgressEntryByUserId(supabase, auth.userId),
@@ -528,34 +494,77 @@ export async function analyzeMyBodyProgress(
   ) as BodyProgressVisionTag[];
 
   const tags = filterNoiseTags(allTags);
-  const personCount = (personResult.records[0]?._objects ?? []).filter(
+  const detectedPersonCount = (personDetection.result.records[0]?._objects ?? []).filter(
     (object) => object.name?.toLowerCase() === 'person',
   ).length;
   const inferredPersonCount =
-    personCount > 0
-      ? personCount
+    detectedPersonCount > 0
+      ? detectedPersonCount
       : allTags.some((tag) => ['person', 'man', 'woman'].includes(tag.name.toLowerCase()))
         ? 1
         : 0;
+
   const bodyFocusTags = pickOutputsFromRulesWithMinProb(tags, BODY_FOCUS_RULES);
-  const topTags = getTopTagNames(tags);
   const postureInferred = buildPostureInferred(tags);
   const visibleBodyZones = buildVisibleBodyZones(tags);
-  const currentSignals = computeBodySignals(tags);
-  const qualityWarnings = buildQualityWarnings(
-    inferredPersonCount,
-    topTags,
-    Boolean(previousEntry),
-  );
-  if (personCount === 0) {
-    qualityWarnings.push(
-      'La deteccion especifica de persona no estuvo disponible en Ximilar para esta cuenta; se uso una inferencia visual de respaldo.',
+  const isBaseline = !previousEntry;
+
+  const samePerson = previousEntry
+    ? buildSamePersonCheck(personDetection.available, inferredPersonCount, previousEntry.person_count)
+    : null;
+
+  const shouldAttemptComparison =
+    !!previousEntry && samePerson?.check !== 'sin_persona_detectada' && samePerson?.check !== 'personas_multiples';
+
+  let categoryComparison: Record<BodyCategoryKey, BodyCategoryComparison> | null = null;
+  let overallChangeLevel: BodyChangeLevel | null = null;
+  let observations: string[] = [];
+  let progressSummary: string;
+  let reliabilityWarning: string | null = null;
+  let comparisonMethod: 'vision_llm' | 'tag_heuristic' | null = null;
+
+  if (shouldAttemptComparison && previousEntry) {
+    const previousImage = await downloadVisionImageAsBase64(
+      supabase,
+      env.SUPABASE_BODY_PROGRESS_IMAGES_BUCKET,
+      previousEntry.source_image_path,
     );
+
+    const visionResult = previousImage
+      ? await compareBodyProgressWithVisionLLM({
+          previousImageBase64: previousImage.base64,
+          previousContentType: previousImage.contentType,
+          currentImageBase64: base64Payload,
+          currentContentType: contentType,
+        })
+      : null;
+
+    if (visionResult) {
+      categoryComparison = visionResult.categories;
+      overallChangeLevel = visionResult.overall_change_level;
+      observations = visionResult.observations;
+      progressSummary = visionResult.progress_summary;
+      reliabilityWarning = visionResult.same_conditions ? null : visionResult.reliability_note;
+      comparisonMethod = 'vision_llm';
+    } else {
+      categoryComparison = buildCategoryComparison(tags, postureInferred, previousEntry);
+      overallChangeLevel = buildOverallChangeLevel(categoryComparison);
+      observations = buildObservations(categoryComparison);
+      progressSummary = buildProgressSummary(isBaseline, overallChangeLevel, categoryComparison);
+      reliabilityWarning = buildReliabilityWarning(tags, postureInferred, previousEntry);
+      comparisonMethod = 'tag_heuristic';
+    }
+  } else if (isBaseline) {
+    progressSummary = buildProgressSummary(
+      true,
+      'leve',
+      {} as Record<BodyCategoryKey, BodyCategoryComparison>,
+    );
+  } else {
+    progressSummary =
+      samePerson?.note ??
+      'No fue posible comparar con el registro anterior; intenta una foto donde se distinga con claridad una sola persona.';
   }
-  const entrySummary = buildEntrySummary(inferredPersonCount, bodyFocusTags, topTags);
-  const comparisonSummary = buildComparisonSummary(tags, previousEntry, bodyFocusTags);
-  const comparisonNotes = buildComparisonNotes(qualityWarnings);
-  const changeSummary = buildChangeSummary(bodyFocusTags, previousEntry, tags, currentSignals);
 
   await uploadVisionImage(
     supabase,
@@ -574,45 +583,107 @@ export async function analyzeMyBodyProgress(
     ximilar_person_model: 'identity/v2/person',
     detected_tags: tags,
     person_count: inferredPersonCount,
-    quality_warnings: qualityWarnings,
     body_focus_tags: bodyFocusTags,
-    entry_summary: entrySummary,
     posture_inferred: postureInferred,
     visible_body_zones: visibleBodyZones,
-    comparison_summary: comparisonSummary,
-    comparison_notes: comparisonNotes,
     compared_to_entry_id: previousEntry?.id ?? null,
+    is_baseline: isBaseline,
+    same_person_check: samePerson?.check,
+    same_person_note: samePerson?.note ?? null,
+    category_comparison: categoryComparison,
+    overall_change_level: overallChangeLevel,
+    progress_summary: progressSummary,
+    observations,
+    reliability_warning: reliabilityWarning,
+    next_capture_recommendations: NEXT_CAPTURE_RECOMMENDATIONS,
+    measurement_disclaimer: MEASUREMENT_DISCLAIMER,
+    comparison_method: comparisonMethod,
     ximilar_tagging_response: taggingResult,
-    ximilar_person_response: personResult,
+    ximilar_person_response: personDetection.result,
   });
 
-  const enriched = await enrichBodyProgressEntry(supabase, entry);
+  return enrichBodyProgressEntry(supabase, entry);
+}
 
-  if (enriched) {
-    enriched.body_reading = buildBodyReadingFromSignals(
-      enriched.person_count,
-      computeBodySignals(enriched.detected_tags),
-      enriched.body_focus_tags,
-      previousEntry,
-    );
-    enriched.capture_quality = buildCaptureQuality(
-      enriched.person_count,
-      enriched.body_focus_tags,
-      Boolean(previousEntry),
-    );
-    enriched.posture_inferred = enriched.posture_inferred ?? buildPostureInferred(enriched.detected_tags);
-    enriched.visible_body_zones = enriched.visible_body_zones?.length
-      ? enriched.visible_body_zones
-      : buildVisibleBodyZones(enriched.detected_tags);
-    enriched.change_summary = changeSummary;
-    enriched.next_capture_tip = buildNextCaptureTip(
-      enriched.person_count,
-      enriched.body_focus_tags,
-      Boolean(previousEntry),
-    );
+export async function reanalyzeMyLatestBodyProgress(
+  supabase: RequestSupabaseClient,
+  auth: AuthUser,
+) {
+  const latest = await getLatestBodyProgressEntryByUserId(supabase, auth.userId);
+
+  if (!latest) {
+    throw new NotFoundError('No tienes registros de progreso corporal todavia.');
   }
 
-  return enriched;
+  if (!latest.compared_to_entry_id) {
+    return enrichBodyProgressEntry(supabase, latest);
+  }
+
+  const previous = await getBodyProgressEntryById(supabase, latest.compared_to_entry_id);
+
+  if (!previous) {
+    return enrichBodyProgressEntry(supabase, latest);
+  }
+
+  const shouldAttemptComparison =
+    latest.same_person_check !== 'sin_persona_detectada' &&
+    latest.same_person_check !== 'personas_multiples';
+
+  let categoryComparison: Record<BodyCategoryKey, BodyCategoryComparison> | null = null;
+  let overallChangeLevel: BodyChangeLevel | null = null;
+  let observations: string[] = [];
+  let progressSummary: string;
+  let reliabilityWarning: string | null = null;
+  let comparisonMethod: 'vision_llm' | 'tag_heuristic' | null = null;
+
+  if (shouldAttemptComparison) {
+    const [currentImage, previousImage] = await Promise.all([
+      downloadVisionImageAsBase64(supabase, env.SUPABASE_BODY_PROGRESS_IMAGES_BUCKET, latest.source_image_path),
+      downloadVisionImageAsBase64(supabase, env.SUPABASE_BODY_PROGRESS_IMAGES_BUCKET, previous.source_image_path),
+    ]);
+
+    const visionResult =
+      currentImage && previousImage
+        ? await compareBodyProgressWithVisionLLM({
+            previousImageBase64: previousImage.base64,
+            previousContentType: previousImage.contentType,
+            currentImageBase64: currentImage.base64,
+            currentContentType: currentImage.contentType,
+          })
+        : null;
+
+    if (visionResult) {
+      categoryComparison = visionResult.categories;
+      overallChangeLevel = visionResult.overall_change_level;
+      observations = visionResult.observations;
+      progressSummary = visionResult.progress_summary;
+      reliabilityWarning = visionResult.same_conditions ? null : visionResult.reliability_note;
+      comparisonMethod = 'vision_llm';
+    } else {
+      const currentPosture = latest.posture_inferred ?? 'no determinada';
+      categoryComparison = buildCategoryComparison(latest.detected_tags, currentPosture, previous);
+      overallChangeLevel = buildOverallChangeLevel(categoryComparison);
+      observations = buildObservations(categoryComparison);
+      progressSummary = buildProgressSummary(false, overallChangeLevel, categoryComparison);
+      reliabilityWarning = buildReliabilityWarning(latest.detected_tags, currentPosture, previous);
+      comparisonMethod = 'tag_heuristic';
+    }
+  } else {
+    progressSummary =
+      latest.same_person_note ??
+      'No fue posible comparar con el registro anterior; intenta una foto donde se distinga con claridad una sola persona.';
+  }
+
+  const updated = await updateBodyProgressEntryComparison(supabase, latest.id, {
+    category_comparison: categoryComparison,
+    overall_change_level: overallChangeLevel,
+    progress_summary: progressSummary,
+    observations,
+    reliability_warning: reliabilityWarning,
+    comparison_method: comparisonMethod,
+  });
+
+  return enrichBodyProgressEntry(supabase, updated);
 }
 
 export async function getMyLatestBodyProgressEntry(

@@ -11,14 +11,80 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import BodyCaptureCamera from "../components/BodyCaptureCamera";
 import { api } from "../lib/api";
 import type {
+  BodyCategoryKey,
+  BodyCategoryTrend,
+  BodyChangeLevel,
   BodyProgressEntry,
+  FoodGroupAssessment,
+  FoodGroupKey,
   MealAnalysis,
   ProgressStatsResponse,
   WorkoutSession,
 } from "../types/api";
 import "./Progress.css";
+
+const FOOD_CATEGORY_ORDER: FoodGroupKey[] = ["proteina", "carbohidratos", "vegetales", "fruta", "grasas"];
+
+const FOOD_CATEGORY_LABELS: Record<FoodGroupKey, string> = {
+  proteina: "Proteinas",
+  carbohidratos: "Carbohidratos",
+  vegetales: "Verduras",
+  fruta: "Frutas",
+  grasas: "Grasas saludables",
+};
+
+const CATEGORY_ASSESSMENT_LABELS: Record<FoodGroupAssessment, string> = {
+  excelente: "Excelente",
+  adecuado: "Adecuado",
+  escaso: "Escaso",
+  no_identificable: "No identificable",
+};
+
+const BODY_CATEGORY_ORDER: BodyCategoryKey[] = [
+  "definicion_muscular",
+  "volumen_muscular",
+  "abdomen",
+  "brazos",
+  "hombros",
+  "pecho",
+  "espalda",
+  "piernas",
+  "postura",
+  "simetria",
+];
+
+const BODY_CATEGORY_LABELS: Record<BodyCategoryKey, string> = {
+  definicion_muscular: "Definicion muscular",
+  volumen_muscular: "Volumen muscular",
+  abdomen: "Abdomen",
+  brazos: "Brazos",
+  hombros: "Hombros",
+  pecho: "Pecho",
+  espalda: "Espalda",
+  piernas: "Piernas",
+  postura: "Postura",
+  simetria: "Simetria corporal",
+};
+
+const BODY_TREND_LABELS: Record<BodyCategoryTrend, string> = {
+  incremento: "Aumento notable",
+  incremento_leve: "Aumento leve",
+  reduccion: "Reduccion notable",
+  reduccion_leve: "Reduccion leve",
+  sin_cambio: "Sin cambio",
+  no_visible: "No visible",
+};
+
+const MAX_WEEK_CHART_BARS = 16;
+
+const BODY_CHANGE_LEVEL_LABELS: Record<BodyChangeLevel, string> = {
+  leve: "leve",
+  moderado: "moderado",
+  alto: "alto",
+};
 
 const Alert = Swal.mixin({
   background: "#111",
@@ -55,35 +121,24 @@ export default function Progress() {
   const [stats, setStats] = useState<ProgressStatsResponse | null>(null);
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [mealLatest, setMealLatest] = useState<MealAnalysis | null>(null);
-  const [mealHistory, setMealHistory] = useState<MealAnalysis[]>([]);
   const [bodyLatest, setBodyLatest] = useState<BodyProgressEntry | null>(null);
-  const [bodyHistory, setBodyHistory] = useState<BodyProgressEntry[]>([]);
   const [uploadingMeal, setUploadingMeal] = useState(false);
   const [uploadingBody, setUploadingBody] = useState(false);
+  const [reanalyzingBody, setReanalyzingBody] = useState(false);
+  const [showBodyCamera, setShowBodyCamera] = useState(false);
 
   async function loadProgress() {
-    const [
-      statsData,
-      sessionsData,
-      mealLatestData,
-      mealHistoryData,
-      bodyLatestData,
-      bodyHistoryData,
-    ] = await Promise.all([
+    const [statsData, sessionsData, mealLatestData, bodyLatestData] = await Promise.all([
       api.get<ProgressStatsResponse>("/progress/stats", { weeks: 8 }),
       api.get<WorkoutSession[]>("/sessions/me", { limit: 5 }),
       api.get<MealAnalysis | null>("/vision/nutrition/latest"),
-      api.get<MealAnalysis[]>("/vision/nutrition/history", { limit: 4 }),
       api.get<BodyProgressEntry | null>("/vision/body-progress/latest"),
-      api.get<BodyProgressEntry[]>("/vision/body-progress/history", { limit: 4 }),
     ]);
 
     setStats(statsData);
     setSessions(sessionsData);
     setMealLatest(mealLatestData);
-    setMealHistory(mealHistoryData);
     setBodyLatest(bodyLatestData);
-    setBodyHistory(bodyHistoryData);
   }
 
   useEffect(() => {
@@ -136,7 +191,6 @@ export default function Progress() {
       });
 
       setMealLatest(analysis);
-      setMealHistory((current) => [analysis, ...current.filter((item) => item.id !== analysis.id)].slice(0, 4));
 
       await Alert.fire({
         icon: "success",
@@ -158,35 +212,16 @@ export default function Progress() {
     }
   };
 
-  const handleBodyFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    event.target.value = "";
-
-    if (file.size > 4 * 1024 * 1024) {
-      await Alert.fire({
-        icon: "info",
-        title: "Imagen demasiado grande",
-        text: "Usa una imagen de hasta 4 MB para registrar progreso corporal.",
-      });
-      return;
-    }
-
+  const submitBodyPhoto = async (imageDataUrl: string, fileName: string) => {
     setUploadingBody(true);
 
     try {
-      const imageDataUrl = await readFileAsDataUrl(file);
       const entry = await api.post<BodyProgressEntry>("/vision/body-progress/analyze", {
         image_data_url: imageDataUrl,
-        file_name: file.name,
+        file_name: fileName,
       });
 
       setBodyLatest(entry);
-      setBodyHistory((current) => [entry, ...current.filter((item) => item.id !== entry.id)].slice(0, 4));
 
       await Alert.fire({
         icon: "success",
@@ -205,6 +240,58 @@ export default function Progress() {
       });
     } finally {
       setUploadingBody(false);
+    }
+  };
+
+  const handleBodyFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    event.target.value = "";
+
+    if (file.size > 4 * 1024 * 1024) {
+      await Alert.fire({
+        icon: "info",
+        title: "Imagen demasiado grande",
+        text: "Usa una imagen de hasta 4 MB para registrar progreso corporal.",
+      });
+      return;
+    }
+
+    const imageDataUrl = await readFileAsDataUrl(file);
+    await submitBodyPhoto(imageDataUrl, file.name);
+  };
+
+  const handleCameraCapture = async (dataUrl: string) => {
+    setShowBodyCamera(false);
+    await submitBodyPhoto(dataUrl, "foto-guiada.jpg");
+  };
+
+  const handleReanalyzeBody = async () => {
+    setReanalyzingBody(true);
+
+    try {
+      const entry = await api.post<BodyProgressEntry>("/vision/body-progress/reanalyze", {});
+
+      setBodyLatest(entry);
+
+      await Alert.fire({
+        icon: "success",
+        title: "Comparacion actualizada",
+        text: "Se volvio a comparar tu registro con el anterior.",
+      });
+    } catch (error) {
+      console.error("Failed to reanalyze body progress", error);
+      await Alert.fire({
+        icon: "error",
+        title: "No se pudo volver a analizar",
+        text: error instanceof Error ? error.message : "Intenta de nuevo en unos minutos.",
+      });
+    } finally {
+      setReanalyzingBody(false);
     }
   };
 
@@ -253,13 +340,29 @@ export default function Progress() {
             <p>
               Consistencia semanal: <strong>{stats?.weekly_consistency ?? 0}%</strong>
             </p>
-            <div className="pg-list" style={{ marginTop: 12 }}>
-              {stats?.sessions_per_week.map((week) => (
-                <span key={week.week}>
-                  <CircleCheck size={14} /> {week.week}: {week.count} sesion(es)
-                </span>
-              ))}
-            </div>
+            {stats?.sessions_per_week.length ? (
+              (() => {
+                const visibleWeeks = stats.sessions_per_week.slice(-MAX_WEEK_CHART_BARS);
+                const maxCount = Math.max(1, ...visibleWeeks.map((w) => w.count));
+
+                return (
+                  <div className="pg-week-chart">
+                    {visibleWeeks.map((week) => {
+                      const heightPct = Math.max(8, (week.count / maxCount) * 100);
+                      return (
+                        <div key={week.week} className="pg-week-bar" title={`${week.week}: ${week.count} sesion(es)`}>
+                          <div className="pg-week-bar-track">
+                            <span className="pg-week-bar-count">{week.count}</span>
+                            <div className="pg-week-bar-fill" style={{ height: `${heightPct}%` }} />
+                          </div>
+                          <span className="pg-week-bar-label">{week.week.slice(5)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()
+            ) : null}
           </article>
 
           <article className="pg-card">
@@ -348,42 +451,65 @@ export default function Progress() {
                   />
                 ) : null}
                 <p>{mealLatest.summary}</p>
+
+                {typeof mealLatest.balance_score === "number" ? (
+                  <div className="pg-score">
+                    <div className="pg-score-row">
+                      <span>Balance visual del plato</span>
+                      <strong>{mealLatest.balance_score.toFixed(1)} / 10</strong>
+                    </div>
+                    <div className="pg-score-bar">
+                      <div
+                        className="pg-score-bar-fill"
+                        style={{ width: `${(mealLatest.balance_score / 10) * 100}%` }}
+                      />
+                    </div>
+                    {mealLatest.balance_score_note ? (
+                      <span className="pg-score-note">{mealLatest.balance_score_note}</span>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <p>{mealLatest.balance_assessment ?? "Balance visual no disponible."}</p>
-                <div className="pg-chip-list">
-                  {(mealLatest.detected_food_groups.length > 0
-                    ? mealLatest.detected_food_groups
-                    : ["sin grupos claros"]
-                  ).map((group) => (
-                    <span key={group}>{group}</span>
-                  ))}
-                </div>
-                <p>
-                  Porcion visual: <strong>{mealLatest.portion_estimate ?? "sin estimacion"}</strong>
-                </p>
-                <p>
-                  Detalle de porcion: <strong>{mealLatest.portion_detail ?? "sin detalle"}</strong>
-                </p>
-                <p>
-                  Proteina: <strong>{mealLatest.protein_strength ?? "sin evaluacion"}</strong>
-                </p>
-                {mealLatest.missing_components?.length ? (
-                  <div className="pg-chip-list">
-                    {mealLatest.missing_components.map((item) => (
-                      <span key={item}>faltan {item}</span>
+
+                {mealLatest.category_assessment ? (
+                  <div className="pg-category-grid">
+                    {FOOD_CATEGORY_ORDER.map((key) => {
+                      const value = mealLatest.category_assessment?.[key];
+                      return (
+                        <div key={key} className={`pg-category ${value ? `pg-category--${value}` : ""}`}>
+                          <span className="pg-category-label">{FOOD_CATEGORY_LABELS[key]}</span>
+                          <span className="pg-category-value">
+                            {value ? CATEGORY_ASSESSMENT_LABELS[value] : "No identificable"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
+                {mealLatest.recommendations?.length ? (
+                  <div className="pg-recommendations">
+                    <span className="pg-recommendations-title">Recomendaciones</span>
+                    <ul className="pg-inline-list">
+                      {mealLatest.recommendations.map((tip, index) => (
+                        <li key={index}>{tip}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {mealLatest.uncertainty_notes?.length ? (
+                  <div className="pg-uncertainty">
+                    {mealLatest.uncertainty_notes.map((note, index) => (
+                      <p key={index}>{note}</p>
                     ))}
                   </div>
                 ) : null}
-                <p>{mealLatest.educational_feedback}</p>
-                <p>{mealLatest.goal_alignment}</p>
-                <p>{mealLatest.practical_tip ?? "Sin sugerencia adicional."}</p>
-                <div className="pg-list">
-                  {mealHistory.map((item) => (
-                    <span key={item.id}>
-                      <CircleCheck size={14} /> {item.created_at.slice(0, 10)} ·{" "}
-                      {(item.detected_food_groups[0] ?? "sin grupo claro")}
-                    </span>
-                  ))}
-                </div>
+
+                {mealLatest.disclaimer ? (
+                  <p className="pg-disclaimer">{mealLatest.disclaimer}</p>
+                ) : null}
               </div>
             ) : (
               <div className="pg-list">
@@ -402,67 +528,147 @@ export default function Progress() {
               Sube fotos periodicas con condiciones parecidas para guardar comparaciones visuales
               orientativas, no clinicas.
             </p>
-            <label className="pg-upload">
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/jpg,image/webp"
-                onChange={(event) => void handleBodyFileChange(event)}
+            <div className="pg-upload-row">
+              <label className="pg-upload">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={(event) => void handleBodyFileChange(event)}
+                  disabled={uploadingBody}
+                />
+                <span>{uploadingBody ? "Registrando progreso..." : "Subir foto corporal"}</span>
+              </label>
+
+              <button
+                type="button"
+                className="pg-btn pg-btn--ghost"
+                onClick={() => setShowBodyCamera(true)}
                 disabled={uploadingBody}
-              />
-              <span>{uploadingBody ? "Registrando progreso..." : "Subir foto corporal"}</span>
-            </label>
+              >
+                Tomar foto guiada
+              </button>
+
+              {bodyLatest?.compared_to_entry_id ? (
+                <button
+                  type="button"
+                  className="pg-btn pg-btn--ghost"
+                  onClick={() => void handleReanalyzeBody()}
+                  disabled={reanalyzingBody}
+                >
+                  {reanalyzingBody ? "Analizando de nuevo..." : "Analizar nuevamente"}
+                </button>
+              ) : null}
+            </div>
 
             {bodyLatest ? (
               <div className="pg-vision-detail">
-                {bodyLatest.source_image_url ? (
+                {bodyLatest.compared_to_image_url ? (
+                  <div className="pg-compare-grid">
+                    <div className="pg-compare-item">
+                      <span className="pg-compare-label">Anterior</span>
+                      <img
+                        className="pg-vision-image pg-vision-image--compare"
+                        src={bodyLatest.compared_to_image_url}
+                        alt="Registro corporal anterior"
+                      />
+                    </div>
+                    <div className="pg-compare-item">
+                      <span className="pg-compare-label">Actual</span>
+                      {bodyLatest.source_image_url ? (
+                        <img
+                          className="pg-vision-image pg-vision-image--compare"
+                          src={bodyLatest.source_image_url}
+                          alt="Ultimo progreso corporal analizado"
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                ) : bodyLatest.source_image_url ? (
                   <img
                     className="pg-vision-image"
                     src={bodyLatest.source_image_url}
                     alt="Ultimo progreso corporal analizado"
                   />
                 ) : null}
-                <p>{bodyLatest.entry_summary}</p>
-                <p>
-                  Postura: <strong>{bodyLatest.posture_inferred ?? "no determinada"}</strong>
-                </p>
-                <p>{bodyLatest.capture_quality ?? "Calidad de captura no disponible."}</p>
-                <p>{bodyLatest.body_reading ?? "Lectura corporal no disponible."}</p>
-                {bodyLatest.visible_body_zones?.length ? (
+
+                <p>{bodyLatest.progress_summary}</p>
+
+                {bodyLatest.is_baseline ? (
                   <div className="pg-chip-list">
-                    {bodyLatest.visible_body_zones.map((zone) => (
-                      <span key={zone}>{zone}</span>
-                    ))}
+                    <span>Punto de referencia inicial</span>
+                  </div>
+                ) : (
+                  <>
+                    {bodyLatest.overall_change_level ? (
+                      <div className="pg-chip-list">
+                        <span className={`pg-change-badge pg-change-badge--${bodyLatest.overall_change_level}`}>
+                          Cambio {BODY_CHANGE_LEVEL_LABELS[bodyLatest.overall_change_level]}
+                        </span>
+                        {bodyLatest.comparison_method ? (
+                          <span className="pg-score-note">
+                            {bodyLatest.comparison_method === "vision_llm"
+                              ? "Analisis por IA de vision"
+                              : "Analisis aproximado por etiquetas (respaldo)"}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {bodyLatest.category_comparison ? (
+                      <div className="pg-category-grid">
+                        {BODY_CATEGORY_ORDER.map((key) => {
+                          const comparison = bodyLatest.category_comparison?.[key];
+                          if (!comparison) return null;
+                          return (
+                            <div
+                              key={key}
+                              className={`pg-category ${
+                                comparison.visible ? `pg-category--trend-${comparison.trend}` : "pg-category--no_identificable"
+                              }`}
+                            >
+                              <span className="pg-category-label">{BODY_CATEGORY_LABELS[key]}</span>
+                              <span className="pg-category-value">
+                                {comparison.visible ? BODY_TREND_LABELS[comparison.trend] : "No visible"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+
+                    {bodyLatest.observations?.length ? (
+                      <div className="pg-recommendations">
+                        <span className="pg-recommendations-title">Cambios detectados</span>
+                        <ul className="pg-inline-list">
+                          {bodyLatest.observations.map((observation, index) => (
+                            <li key={index}>{observation}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {bodyLatest.reliability_warning ? (
+                      <div className="pg-uncertainty">
+                        <p>{bodyLatest.reliability_warning}</p>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+
+                {bodyLatest.next_capture_recommendations?.length ? (
+                  <div className="pg-recommendations">
+                    <span className="pg-recommendations-title">Para tu proxima foto</span>
+                    <ul className="pg-inline-list">
+                      {bodyLatest.next_capture_recommendations.map((tip, index) => (
+                        <li key={index}>{tip}</li>
+                      ))}
+                    </ul>
                   </div>
                 ) : null}
-                <p>{bodyLatest.comparison_summary}</p>
-                {bodyLatest.change_summary ? (
-                  <p className="pg-change-summary">{bodyLatest.change_summary}</p>
+
+                {bodyLatest.measurement_disclaimer ? (
+                  <p className="pg-disclaimer">{bodyLatest.measurement_disclaimer}</p>
                 ) : null}
-                <p>{bodyLatest.comparison_notes}</p>
-                <p>{bodyLatest.next_capture_tip ?? "Sin recomendacion adicional."}</p>
-                <div className="pg-chip-list">
-                  {(bodyLatest.body_focus_tags.length > 0
-                    ? bodyLatest.body_focus_tags
-                    : ["seguimiento visual general"]
-                  ).map((tag) => (
-                    <span key={tag}>{tag}</span>
-                  ))}
-                </div>
-                {bodyLatest.quality_warnings.length > 0 ? (
-                  <ul className="pg-inline-list">
-                    {bodyLatest.quality_warnings.map((warning) => (
-                      <li key={warning}>{warning}</li>
-                    ))}
-                  </ul>
-                ) : null}
-                <div className="pg-list">
-                  {bodyHistory.map((item) => (
-                    <span key={item.id}>
-                      <CircleCheck size={14} /> {item.created_at.slice(0, 10)} ·{" "}
-                      {item.person_count} persona(s)
-                    </span>
-                  ))}
-                </div>
               </div>
             ) : (
               <div className="pg-list">
@@ -483,6 +689,14 @@ export default function Progress() {
           </button>
         </div>
       </main>
+
+      {showBodyCamera ? (
+        <BodyCaptureCamera
+          referenceImageUrl={bodyLatest?.source_image_url ?? null}
+          onCapture={(dataUrl) => void handleCameraCapture(dataUrl)}
+          onClose={() => setShowBodyCamera(false)}
+        />
+      ) : null}
     </div>
   );
 }

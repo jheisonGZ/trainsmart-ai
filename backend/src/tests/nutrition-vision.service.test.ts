@@ -39,11 +39,16 @@ test('nutrition analysis saves meal analysis and aligns educational feedback wit
       'carbohidratos',
       'vegetales',
     ]);
-    assert.match(result?.balance_assessment ?? '', /composici[oó]n|plato/i);
-    assert.match(result?.portion_estimate ?? '', /porci[oó]n/i);
-    assert.match(result?.goal_alignment ?? '', /ganancia muscular/i);
-    assert.ok(result?.protein_strength, 'protein_strength should be present');
-    assert.ok(result?.portion_detail, 'portion_detail should be present');
+    assert.match(result?.balance_assessment ?? '', /plato/i);
+    assert.equal(result?.category_assessment?.proteina, 'excelente');
+    assert.equal(result?.category_assessment?.fruta, 'no_identificable');
+    assert.ok(typeof result?.balance_score === 'number');
+    assert.ok((result?.balance_score ?? 0) > 0 && (result?.balance_score ?? 0) <= 10);
+    assert.ok(result?.recommendations?.length && result.recommendations.length <= 3);
+    assert.match(result?.recommendations?.[0] ?? '', /ganar masa muscular/i);
+    assert.ok(result?.disclaimer, 'disclaimer should be present');
+    assert.match(result?.summary ?? '', /chicken|rice|broccoli/);
+    assert.doesNotMatch(result?.summary ?? '', /\btop\b|\bmeal\b|\bdiet\b/i);
     assert.equal(supabase.tables.meal_analyses.length, 1);
     assert.equal(supabase.uploads.length, 1);
     assert.match(result?.source_image_url ?? '', /signed\.example/);

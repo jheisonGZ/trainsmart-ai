@@ -3,6 +3,10 @@ export interface NutritionVisionTag {
   prob: number;
 }
 
+export type FoodGroupKey = 'proteina' | 'carbohidratos' | 'vegetales' | 'fruta' | 'grasas';
+
+export type FoodGroupAssessment = 'excelente' | 'adecuado' | 'escaso' | 'no_identificable';
+
 export interface MealAnalysis {
   id: string;
   user_id: string;
@@ -15,11 +19,12 @@ export interface MealAnalysis {
   educational_feedback: string;
   goal_alignment: string;
   balance_assessment?: string;
-  missing_components?: string[];
-  portion_estimate?: string;
-  protein_strength?: string;
-  portion_detail?: string;
-  practical_tip?: string;
+  category_assessment?: Record<FoodGroupKey, FoodGroupAssessment>;
+  balance_score?: number;
+  balance_score_note?: string;
+  recommendations?: string[];
+  uncertainty_notes?: string[];
+  disclaimer?: string;
   ximilar_response: unknown;
   created_at: string;
 }

@@ -4,6 +4,7 @@ import {
   analyzeMyBodyProgressController,
   getMyLatestBodyProgressEntryController,
   listMyBodyProgressEntriesController,
+  reanalyzeMyLatestBodyProgressController,
 } from '../controllers/body-progress-vision.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { validateBody, validateQuery } from '../middlewares/validate.middleware';
@@ -27,5 +28,6 @@ router.post(
   validateBody(analyzeBodyProgressSchema),
   analyzeMyBodyProgressController,
 );
+router.post('/reanalyze', authMiddleware, reanalyzeMyLatestBodyProgressController);
 
 export default router;

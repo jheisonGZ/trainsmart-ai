@@ -71,3 +71,11 @@ export function pickOutputsFromRules(tags: VisionTag[], rules: VisionRule[]) {
 export function getTopTagNames(tags: VisionTag[], limit = 6) {
   return tags.slice(0, limit).map((tag) => tag.name);
 }
+
+export function getRecognizedFoodTagNames(tags: VisionTag[], rules: VisionRule[], limit = 8) {
+  const foodLabels = new Set(rules.flatMap((rule) => rule.labels));
+  return tags
+    .filter((tag) => foodLabels.has(tag.name.toLowerCase()))
+    .slice(0, limit)
+    .map((tag) => tag.name);
+}

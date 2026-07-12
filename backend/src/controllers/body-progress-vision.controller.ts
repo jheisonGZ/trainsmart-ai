@@ -3,6 +3,7 @@ import {
   analyzeMyBodyProgress,
   getMyLatestBodyProgressEntry,
   listMyBodyProgressEntries,
+  reanalyzeMyLatestBodyProgress,
 } from '../services/body-progress-vision.service';
 import { asyncHandler, sendSuccess } from '../utils/api-response';
 
@@ -13,6 +14,11 @@ export const analyzeMyBodyProgressController = asyncHandler(async (req, res) => 
     req.body,
   );
   return sendSuccess(res, entry, 201);
+});
+
+export const reanalyzeMyLatestBodyProgressController = asyncHandler(async (req, res) => {
+  const entry = await reanalyzeMyLatestBodyProgress(getRequestSupabase(req), getRequestAuth(req));
+  return sendSuccess(res, entry);
 });
 
 export const getMyLatestBodyProgressEntryController = asyncHandler(async (req, res) => {

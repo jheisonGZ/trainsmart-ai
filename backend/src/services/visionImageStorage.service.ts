@@ -68,6 +68,35 @@ export async function createVisionImageSignedUrl(
   };
 }
 
+export async function downloadVisionImageAsBase64(
+  supabase: RequestSupabaseClient,
+  bucket: string,
+  path: string,
+): Promise<{ base64: string; contentType: string } | null> {
+  try {
+    const { data, error } = await supabase.storage.from(bucket).download(path);
+
+    if (error || !data) {
+      throw error ?? new Error('No data returned from storage download.');
+    }
+
+    const arrayBuffer = await data.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+    return {
+      base64,
+      contentType: data.type || 'image/jpeg',
+    };
+  } catch (error) {
+    logger.warn('Could not download vision image for comparison.', {
+      bucket,
+      path,
+      error,
+    });
+    return null;
+  }
+}
+
 export async function createVisionImageSignedUrlSafely(
   supabase: RequestSupabaseClient,
   bucket: string,

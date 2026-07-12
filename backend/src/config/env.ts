@@ -45,6 +45,7 @@ const envSchema = z.object({
   GROQ_API_KEY: z.string().default(''),
   LLM_MODEL: z.string().min(1).default('llama-3.3-70b-versatile'),
   LLM_BASE_URL: z.string().url().default('https://api.groq.com/openai/v1'),
+  VISION_LLM_MODEL: z.string().min(1).default('meta-llama/llama-4-scout-17b-16e-instruct'),
   XIMILAR_API_TOKEN: z.string().default(''),
   XIMILAR_BASE_URL: z.string().url().default('https://api.ximilar.com'),
   ELEVENLABS_API_KEY: z.string().default(''),

@@ -13,8 +13,6 @@ export interface CreateMealAnalysisPayload {
   summary: string;
   educational_feedback: string;
   goal_alignment: string;
-  protein_strength: string | null;
-  portion_detail: string | null;
   ximilar_response: unknown;
 }
 

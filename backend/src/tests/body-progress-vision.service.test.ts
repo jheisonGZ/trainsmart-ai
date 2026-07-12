@@ -15,14 +15,15 @@ test('body progress analysis saves entry and compares with previous snapshot', a
         source_image_content_type: 'image/jpeg',
         ximilar_tagging_model: 'photo/tags/v2/tags',
         ximilar_person_model: 'identity/v2/person',
-        detected_tags: [{ name: 'person', prob: 0.91 }],
+        detected_tags: [
+          { name: 'person', prob: 0.91 },
+          { name: 'abs', prob: 0.3 },
+          { name: 'chest', prob: 0.4 },
+        ],
         person_count: 1,
-        quality_warnings: [],
         body_focus_tags: ['persona visible'],
-        entry_summary: 'Anterior',
-        comparison_summary: 'Anterior',
-        comparison_notes: 'Anterior',
         compared_to_entry_id: null,
+        is_baseline: true,
         ximilar_tagging_response: {},
         ximilar_person_response: {},
         created_at: '2026-01-01T00:00:00.000Z',
@@ -45,6 +46,8 @@ test('body progress analysis saves entry and compares with previous snapshot', a
                 { name: 'person', prob: 0.96 },
                 { name: 'fitness', prob: 0.82 },
                 { name: 'gym', prob: 0.77 },
+                { name: 'abs', prob: 0.75 },
+                { name: 'chest', prob: 0.45 },
               ],
             },
           ],
@@ -80,10 +83,18 @@ test('body progress analysis saves entry and compares with previous snapshot', a
     assert.ok(result);
     assert.equal(result?.person_count, 1);
     assert.equal(result?.compared_to_entry_id, 'previous-entry');
-    assert.match(result?.comparison_summary ?? '', /comparacion/i);
+    assert.equal(result?.is_baseline, false);
     assert.ok(result?.posture_inferred, 'posture_inferred should be present');
     assert.ok(Array.isArray(result?.visible_body_zones), 'visible_body_zones should be an array');
-    assert.ok(result?.change_summary, 'change_summary should be present');
+    assert.equal(result?.same_person_check, 'consistente');
+    assert.equal(result?.category_comparison?.abdomen.trend, 'incremento');
+    assert.equal(result?.category_comparison?.simetria.visible, false);
+    assert.equal(result?.overall_change_level, 'moderado');
+    assert.equal(result?.comparison_method, 'tag_heuristic');
+    assert.ok(result?.observations?.length && result.observations.length >= 1);
+    assert.match(result?.progress_summary ?? '', /cambio moderado/i);
+    assert.match(result?.measurement_disclaimer ?? '', /grasa corporal/i);
+    assert.equal(result?.next_capture_recommendations?.length, 3);
     assert.equal(supabase.tables.body_progress_entries.length, 2);
     assert.equal(supabase.uploads.length, 1);
     assert.match(result?.source_image_url ?? '', /signed\.example/);
