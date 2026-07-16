@@ -129,52 +129,16 @@
 ══════════════════════════════════════════════════════════ */
 .pf-sum-main {
   flex: 1;
-  display: flex;
-  justify-content: center;
-  padding: 32px 16px 60px;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Fondo desenfocado */
-.pf-sum-main::before {
-  content: '';
-  position: absolute;
-  inset: -30px; /* extra para evitar bordes blancos del blur */
- background: url("/images/login.webp") center / cover no-repeat;
-  filter: blur(22px) brightness(0.18) saturate(0.7);
-  z-index: 0;
-}
-
-/* Overlay gradiente encima del fondo */
-.pf-sum-main::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    160deg,
-    rgba(255,74,43,0.06) 0%,
-    rgba(10,10,10,0.45) 50%,
-    rgba(10,10,10,0.7) 100%
-  );
-  z-index: 1;
+  padding: 28px 20px 60px;
 }
 
 .pf-sum-card {
   width: 100%;
-  max-width: 620px;
-  background: rgba(15,15,15,0.72);
-  border: 1px solid rgba(255,255,255,0.11);
-  border-radius: 20px;
-  padding: 28px;
+  max-width: 1100px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.7);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  position: relative;
-  z-index: 2;
 }
 
 /* Hero */
@@ -232,8 +196,8 @@
   display: flex;
   align-items: center;
   gap: 20px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.09);
+  background: var(--bg2);
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 16px 20px;
 }
@@ -268,8 +232,12 @@
 /* Grid datos */
 .pf-sum-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
 }
 .pf-sum-item {
   display: flex;
@@ -339,10 +307,9 @@
 
 /* Card */
 .pf-card {
-  width: 100%; max-width: 620px;
+  width: 100%; max-width: 640px;
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: 16px; padding: 32px;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.4);
   animation: fadeUp .35s ease;
 }
 @keyframes fadeUp {
