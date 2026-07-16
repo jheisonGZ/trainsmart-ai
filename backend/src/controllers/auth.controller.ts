@@ -28,9 +28,9 @@ export const getAuthenticatedUser = asyncHandler(async (req, res) => {
 export const getLoginGreetingController = asyncHandler(async (req, res) => {
   const auth = getRequestAuth(req);
   const supabase = getRequestSupabase(req);
-  const { name } = req.query as unknown as LoginGreetingQueryInput;
+  const { name, hour } = req.query as unknown as LoginGreetingQueryInput;
 
-  const greeting = await generateLoginGreeting(supabase, auth, name ?? null);
+  const greeting = await generateLoginGreeting(supabase, auth, name ?? null, hour ?? null);
 
   return sendSuccess(res, greeting);
 });

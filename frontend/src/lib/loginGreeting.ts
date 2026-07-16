@@ -37,10 +37,10 @@ export async function playLoginGreeting() {
       : null;
     const name = fullName?.split(/\s+/)[0] ?? null;
 
-    const greeting = await api.get<GreetingAccess>(
-      "/auth/greeting",
-      name ? { name } : undefined,
-    );
+    const greeting = await api.get<GreetingAccess>("/auth/greeting", {
+      ...(name ? { name } : {}),
+      hour: new Date().getHours(),
+    });
 
     const audio = new Audio(greeting.audioUrl);
     playWithInteractionFallback(audio);

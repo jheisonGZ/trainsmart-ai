@@ -14,8 +14,8 @@ function ensureElevenLabsEnabled() {
   }
 }
 
-function buildGreetingText(displayName: string | null) {
-  const hour = new Date().getHours();
+function buildGreetingText(displayName: string | null, localHour: number | null) {
+  const hour = localHour ?? new Date().getHours();
   const timeGreeting =
     hour < 12 ? 'Buenos dias' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
   const name = displayName?.trim();
@@ -29,10 +29,11 @@ export async function generateLoginGreeting(
   supabase: RequestSupabaseClient,
   auth: AuthUser,
   displayName: string | null,
+  localHour: number | null,
 ) {
   ensureElevenLabsEnabled();
 
-  const text = buildGreetingText(displayName);
+  const text = buildGreetingText(displayName, localHour);
 
   logger.info('Login greeting generation started', {
     userId: auth.userId,
