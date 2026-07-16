@@ -1,5 +1,3 @@
-
-
 <h1 align="center">TrainSmart AI</h1>
 
 <p align="center">
@@ -9,8 +7,6 @@
 Aplicación web full-stack que genera rutinas de entrenamiento personalizadas con IA, hace seguimiento de progreso real y analiza fotos (comida, progreso corporal, equipo de gimnasio) con visión por computador.
 
 Desarrollada con **React + TypeScript + Vite** en el frontend y **Node.js + Express + TypeScript** en el backend, sobre **Supabase** (Auth + Postgres + Storage).
-
-**URL de producción:** [trainsmart-ai-two.vercel.app](https://trainsmart-ai-two.vercel.app)
 
 ---
 
@@ -29,27 +25,27 @@ Desarrollada con **React + TypeScript + Vite** en el frontend y **Node.js + Expr
 
 ### Frontend (`/frontend`)
 
-| Tecnología         | Uso                                |
-| ------------------- | ----------------------------------- |
-| React + TypeScript + Vite | Framework UI y bundler       |
-| React Router v7     | Navegación entre páginas          |
-| Supabase JS         | Autenticación (email/contraseña + Google) |
-| SweetAlert2         | Confirmaciones y notificaciones     |
-| Lucide React        | Iconos SVG                          |
-| GSAP                | Animaciones                         |
-| CSS puro            | Sin frameworks de estilos (Tailwind, etc.) |
+| Tecnología               | Uso                                         |
+| ------------------------- | ------------------------------------------- |
+| React + TypeScript + Vite | Framework UI y bundler                      |
+| React Router v7           | Navegación entre páginas                  |
+| Supabase JS               | Autenticación (email/contraseña + Google) |
+| SweetAlert2               | Confirmaciones y notificaciones             |
+| Lucide React              | Iconos SVG                                  |
+| GSAP                      | Animaciones                                 |
+| CSS puro                  | Sin frameworks de estilos (Tailwind, etc.)  |
 
 ### Backend (`/backend`)
 
-| Tecnología                  | Uso                                          |
-| ---------------------------- | --------------------------------------------- |
-| Node.js + Express + TypeScript | API REST                                   |
+| Tecnología                          | Uso                                                               |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| Node.js + Express + TypeScript       | API REST                                                          |
 | Supabase (Postgres + Auth + Storage) | Base de datos, autenticación y almacenamiento de imágenes/audio |
-| Groq (`llama-3.3-70b-versatile`) | Generación de rutinas con LLM             |
-| Google Gemini Vision         | Análisis de fotos (comida / cuerpo / entorno) |
-| ElevenLabs                   | Narración de audio de las rutinas (opcional) |
-| Zod                          | Validación de esquemas                       |
-| Multer                       | Subida de imágenes                           |
+| Groq (`llama-3.3-70b-versatile`)   | Generación de rutinas con LLM                                    |
+| Google Gemini Vision                 | Análisis de fotos (comida / cuerpo / entorno)                    |
+| ElevenLabs                           | Narración de audio de las rutinas (opcional)                     |
+| Zod                                  | Validación de esquemas                                           |
+| Multer                               | Subida de imágenes                                               |
 
 ---
 
