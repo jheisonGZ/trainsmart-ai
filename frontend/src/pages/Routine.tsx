@@ -380,6 +380,17 @@ export default function Routine() {
 
     try {
       await action();
+    } catch (error) {
+      console.error(`Routine action "${actionKey}" failed`, error);
+
+      await Alert.fire({
+        icon: "error",
+        title: "No se pudo completar la acción",
+        text:
+          error instanceof ApiClientError
+            ? error.message
+            : "Intenta de nuevo en unos segundos.",
+      });
     } finally {
       setBusyAction(null);
     }
