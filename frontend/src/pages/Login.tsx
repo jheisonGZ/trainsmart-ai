@@ -256,13 +256,13 @@ export default function Login() {
     try {
       const result = await signIn(email, password);
       Swal.close();
+      void playLoginGreeting();
 
       if (result.warning) {
         await showWarning(result.warning);
       }
 
       await showSuccess("Bienvenido de vuelta");
-      void playLoginGreeting();
       navigate("/dashboard");
     } catch (error) {
       Swal.close();
@@ -306,12 +306,13 @@ export default function Login() {
         return;
       }
 
+      void playLoginGreeting();
+
       if (result.warning) {
         await showWarning(result.warning);
       }
 
       await showSuccess("Cuenta creada correctamente");
-      void playLoginGreeting();
       navigate("/dashboard");
     } catch (error) {
       Swal.close();
@@ -351,8 +352,8 @@ export default function Login() {
         return;
       }
 
-      await showSuccess("Sesión iniciada correctamente");
       void playLoginGreeting();
+      await showSuccess("Sesión iniciada correctamente");
       navigate("/dashboard");
     } catch (error) {
       Swal.close();

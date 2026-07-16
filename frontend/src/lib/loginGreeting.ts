@@ -7,6 +7,23 @@ interface GreetingAccess {
   expiresIn: number;
 }
 
+function playWithInteractionFallback(audio: HTMLAudioElement) {
+  audio.play().catch(() => {
+    const retry = () => {
+      document.removeEventListener("click", retry);
+      document.removeEventListener("keydown", retry);
+      document.removeEventListener("touchstart", retry);
+      void audio.play().catch((error) => {
+        console.warn("Login greeting playback failed on retry", error);
+      });
+    };
+
+    document.addEventListener("click", retry, { once: true });
+    document.addEventListener("keydown", retry, { once: true });
+    document.addEventListener("touchstart", retry, { once: true });
+  });
+}
+
 export async function playLoginGreeting() {
   try {
     if (!supabase) {
@@ -15,9 +32,10 @@ export async function playLoginGreeting() {
 
     const { data } = await supabase.auth.getUser();
     const user = data.user;
-    const name = user
+    const fullName = user
       ? (getDisplayName(user) ?? user.email?.split("@")[0]?.trim() ?? null)
       : null;
+    const name = fullName?.split(/\s+/)[0] ?? null;
 
     const greeting = await api.get<GreetingAccess>(
       "/auth/greeting",
@@ -25,7 +43,7 @@ export async function playLoginGreeting() {
     );
 
     const audio = new Audio(greeting.audioUrl);
-    await audio.play();
+    playWithInteractionFallback(audio);
   } catch (error) {
     console.warn("Login greeting skipped", error);
   }
