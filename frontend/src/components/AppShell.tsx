@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
+import { getAvatarUrl, getDisplayName } from "../lib/supabaseUserDisplay";
 import "./AppShell.css";
 
 type NavItem = {
@@ -62,17 +63,18 @@ function getCurrentSectionTitle(pathname: string) {
 export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { firebaseUser, supabaseUser, signOut } = useAuth();
+  const { supabaseUser, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const mainScrollRef = useRef<HTMLDivElement>(null);
 
   const userDisplayName = useMemo(() => {
     return (
-      firebaseUser?.displayName?.trim() ??
+      getDisplayName(supabaseUser) ??
       supabaseUser?.email?.split("@")[0] ??
       "Usuario"
     );
-  }, [firebaseUser?.displayName, supabaseUser?.email]);
+  }, [supabaseUser]);
+  const avatarUrl = getAvatarUrl(supabaseUser);
 
   const userInitial = userDisplayName[0]?.toUpperCase() ?? "U";
   const currentTitle = getCurrentSectionTitle(location.pathname);
@@ -108,9 +110,9 @@ export default function AppShell() {
 
         <div className="app-shell__account">
           <div className="app-shell__avatar">
-            {firebaseUser?.photoURL ? (
+            {avatarUrl ? (
               <img
-                src={firebaseUser.photoURL}
+                src={avatarUrl}
                 alt={userDisplayName}
                 referrerPolicy="no-referrer"
               />
@@ -170,9 +172,9 @@ export default function AppShell() {
           </div>
 
           <div className="app-shell__topbar-avatar">
-            {firebaseUser?.photoURL ? (
+            {avatarUrl ? (
               <img
-                src={firebaseUser.photoURL}
+                src={avatarUrl}
                 alt={userDisplayName}
                 referrerPolicy="no-referrer"
               />

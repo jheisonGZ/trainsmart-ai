@@ -6,18 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import {
-  GoogleAuthProvider,
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  signOut as signOutFirebaseAuth,
-  updateProfile as updateFirebaseProfile,
-  type User as FirebaseUser,
-} from "firebase/auth";
 
-import { auth as firebaseAuth } from "../firebase";
 import { clearApiClientState, setApiAccessTokenGetter } from "../lib/api";
 import {
   isSupabaseConfigured,
@@ -39,14 +28,14 @@ interface SignUpOptions {
 interface AuthContextValue {
   loading: boolean;
   supabaseUser: SupabaseUser | null;
-  firebaseUser: FirebaseUser | null;
   signUp: (
     email: string,
     password: string,
     options?: SignUpOptions,
   ) => Promise<AuthOperationResult>;
   signIn: (email: string, password: string) => Promise<AuthOperationResult>;
-  signInWithGooglePopupFirebase: () => Promise<AuthOperationResult>;
+  signInWithGoogle: () => Promise<AuthOperationResult>;
+  resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   getSupabaseAccessToken: () => Promise<string | null>;
 }
@@ -130,26 +119,13 @@ function getOAuthRedirectUrl() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
 
   useEffect(() => {
     let active = true;
 
     async function initializeAuth() {
-      const initialFirebaseUser = await new Promise<FirebaseUser | null>((resolve) => {
-        const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
-          unsubscribe();
-          resolve(user);
-        });
-      });
-
-      if (!active) {
-        return;
-      }
-
       if (!isSupabaseConfigured || !supabase) {
         setSupabaseUser(null);
-        setFirebaseUser(initialFirebaseUser);
         setLoading(false);
         return;
       }
@@ -165,7 +141,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setSupabaseUser(data.session?.user ?? null);
-      setFirebaseUser(initialFirebaseUser);
       setLoading(false);
     }
 
@@ -181,46 +156,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }).data
       : null;
 
-    const unsubscribeFirebase = onAuthStateChanged(firebaseAuth, (user) => {
-      if (!active) {
-        return;
-      }
-
-      setFirebaseUser(user);
-    });
-
     setApiAccessTokenGetter(readSupabaseAccessToken);
 
     return () => {
       active = false;
       supabaseSubscription?.subscription.unsubscribe();
-      unsubscribeFirebase();
     };
   }, []);
-
-  async function syncFirebaseEmailPasswordAccount(
-    email: string,
-    password: string,
-    displayName?: string,
-  ) {
-    try {
-      const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
-
-      if (displayName?.trim()) {
-        await updateFirebaseProfile(credential.user, {
-          displayName: displayName.trim(),
-        });
-      }
-
-      return {};
-    } catch (error) {
-      console.warn("Firebase sign-up best-effort sync failed", error);
-      return {
-        warning:
-          "La cuenta quedo creada correctamente, pero Firebase no se sincronizo automaticamente.",
-      };
-    }
-  }
 
   async function signUp(
     email: string,
@@ -257,11 +199,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (!signUpResult.data.session) {
-      await syncFirebaseEmailPasswordAccount(email, password, options?.displayName);
-      await signOutFirebaseAuth(firebaseAuth).catch((error) => {
-        console.warn("Firebase sign-out after email-verification sign-up failed", error);
-      });
-
       return {
         requiresEmailVerification: true,
         email,
@@ -269,19 +206,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     await ensureOperationalSupabaseSession();
-
-    const firebaseSyncResult = await syncFirebaseEmailPasswordAccount(
-      email,
-      password,
-      options?.displayName,
-    );
-
-    if (firebaseSyncResult.warning) {
-      return {
-        warning:
-          "La cuenta quedo operativa en Supabase, pero Firebase no se sincronizo automaticamente.",
-      };
-    }
 
     return {};
   }
@@ -300,52 +224,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     await ensureOperationalSupabaseSession();
 
-    try {
-      await signInWithEmailAndPassword(firebaseAuth, email, password);
-      return {};
-    } catch (error) {
-      console.warn("Firebase sign-in best-effort sync failed", error);
-      return {
-        warning:
-          "La sesion operativa quedo abierta en Supabase, pero Firebase no se sincronizo automaticamente.",
-      };
-    }
+    return {};
   }
 
-  async function signInWithGooglePopupFirebase(): Promise<AuthOperationResult> {
+  async function signInWithGoogle(): Promise<AuthOperationResult> {
     clearApiClientState();
     const supabaseClient = requireSupabaseClient();
-    const provider = new GoogleAuthProvider();
-    provider.addScope("openid");
-    provider.addScope("email");
-    provider.addScope("profile");
-    const result = await signInWithPopup(firebaseAuth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    const googleIdToken = (credential as { idToken?: string } | null)?.idToken;
-
-    if (googleIdToken) {
-      const idTokenResult = await supabaseClient.auth.signInWithIdToken({
-        provider: "google",
-        token: googleIdToken,
-      });
-
-      if (!idTokenResult.error) {
-        await ensureOperationalSupabaseSession();
-        return {};
-      }
-
-      console.warn(
-        "Supabase signInWithIdToken failed, falling back to OAuth",
-        idTokenResult.error,
-      );
-
-      if (isSupabaseGoogleProviderDisabled(idTokenResult.error)) {
-        throw new Error(
-          "Google no esta habilitado en Supabase Auth. Activalo en Supabase Dashboard -> Authentication -> Providers -> Google.",
-        );
-      }
-    }
-
     const oauthResult = await supabaseClient.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -368,13 +252,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }
 
-  async function signOut() {
-    const supabaseSignOut = supabase ? supabase.auth.signOut() : Promise.resolve();
+  async function resetPassword(email: string): Promise<void> {
+    const supabaseClient = requireSupabaseClient();
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: getOAuthRedirectUrl(),
+    });
 
-    await Promise.allSettled([
-      supabaseSignOut,
-      signOutFirebaseAuth(firebaseAuth),
-    ]);
+    if (error) {
+      throw error;
+    }
+  }
+
+  async function signOut() {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
 
     clearApiClientState();
   }
@@ -388,10 +280,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         loading,
         supabaseUser,
-        firebaseUser,
         signUp,
         signIn,
-        signInWithGooglePopupFirebase,
+        signInWithGoogle,
+        resetPassword,
         signOut,
         getSupabaseAccessToken,
       }}

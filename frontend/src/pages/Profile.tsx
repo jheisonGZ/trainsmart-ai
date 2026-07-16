@@ -23,6 +23,7 @@ import {
 import RequestStateCard from "../components/RequestStateCard";
 import { useAuth } from "../context/AuthContext";
 import { ApiClientError, api } from "../lib/api";
+import { getAvatarUrl, getDisplayName } from "../lib/supabaseUserDisplay";
 import type { Goal, ProfileRecord } from "../types/api";
 import "./Profile.css";
 
@@ -103,12 +104,12 @@ function ProfileSummary({
   confirming: boolean;
 }) {
   const navigate = useNavigate();
-  const { firebaseUser, supabaseUser, signOut } = useAuth();
+  const { supabaseUser, signOut } = useAuth();
   const cardRef = useRef<HTMLDivElement>(null);
   const bmiState = getBmiPresentation(profile);
   const firstName =
     profile.name?.split(" ")[0] ??
-    firebaseUser?.displayName?.split(" ")[0] ??
+    getDisplayName(supabaseUser)?.split(" ")[0] ??
     "Usuario";
 
   useEffect(() => {
@@ -168,9 +169,9 @@ function ProfileSummary({
         <div className="pf-sum-card" ref={cardRef}>
           <div className="pf-sum-hero">
             <div className="pf-sum-avatar">
-              {firebaseUser?.photoURL || profile.avatar_url ? (
+              {getAvatarUrl(supabaseUser) || profile.avatar_url ? (
                 <img
-                  src={firebaseUser?.photoURL ?? profile.avatar_url ?? ""}
+                  src={getAvatarUrl(supabaseUser) ?? profile.avatar_url ?? ""}
                   alt={firstName}
                   referrerPolicy="no-referrer"
                 />
@@ -302,7 +303,7 @@ function ProfileForm({
   onCancel?: () => void;
 }) {
   const navigate = useNavigate();
-  const { firebaseUser, supabaseUser, signOut } = useAuth();
+  const { supabaseUser, signOut } = useAuth();
   const sexSelectRef = useRef<HTMLDivElement>(null);
   const saveInFlightRef = useRef(false);
   const isEdit = Boolean(existing?.completed);
@@ -310,7 +311,7 @@ function ProfileForm({
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(
-    existing?.name ?? firebaseUser?.displayName ?? "",
+    existing?.name ?? getDisplayName(supabaseUser) ?? "",
   );
   const [birthDate, setBirthDate] = useState(existing?.birth_date ?? "");
   const [sex, setSex] = useState(existing?.sex ?? "");
@@ -467,7 +468,7 @@ function ProfileForm({
         days_per_week: Number(daysPerWeek),
         time_per_session: Number(timePerSession),
         email: supabaseUser?.email ?? existing?.email ?? undefined,
-        avatar_url: firebaseUser?.photoURL ?? existing?.avatar_url ?? undefined,
+        avatar_url: getAvatarUrl(supabaseUser) ?? existing?.avatar_url ?? undefined,
       };
 
       const saved = existing?.user_id

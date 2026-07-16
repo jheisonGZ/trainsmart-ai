@@ -55,9 +55,9 @@ export interface GenerateJsonResult<TSchema extends z.ZodTypeAny> {
 }
 
 function getModelProvider(model: string) {
-  if (env.LLM_BASE_URL.includes('groq.com')) {
+  if (env.LLM_BASE_URL.includes('openai.com')) {
     return {
-      modelProvider: 'groq',
+      modelProvider: 'openai',
       modelName: model,
     };
   }
@@ -146,8 +146,8 @@ export async function callLLM(
   messages: ChatMessage[],
   temperature = 0.4,
 ): Promise<CallLlmResult> {
-  if (!env.GROQ_API_KEY) {
-    throw new PreconditionFailedError('GROQ_API_KEY is not configured.');
+  if (!env.OPENAI_API_KEY) {
+    throw new PreconditionFailedError('OPENAI_API_KEY is not configured.');
   }
 
   const endpoint = `${env.LLM_BASE_URL.replace(/\/$/, '')}/chat/completions`;
@@ -159,7 +159,7 @@ export async function callLLM(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${env.GROQ_API_KEY}`,
+        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         model: env.LLM_MODEL,

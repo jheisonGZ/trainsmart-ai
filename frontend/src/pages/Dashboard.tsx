@@ -13,6 +13,7 @@ import {
 import RequestStateCard from "../components/RequestStateCard";
 import { useAuth } from "../context/AuthContext";
 import { ApiClientError, api } from "../lib/api";
+import { getAvatarUrl, getDisplayName } from "../lib/supabaseUserDisplay";
 import type {
   AuthMeResponse,
   ProfileRecord,
@@ -45,7 +46,7 @@ const isMobile = () => window.innerWidth <= 768;
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { firebaseUser } = useAuth();
+  const { supabaseUser } = useAuth();
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
   const [authState, setAuthState] = useState<AuthMeResponse | null>(null);
   const [todayRoutine, setTodayRoutine] = useState<RoutineTodayResponse | null>(null);
@@ -155,7 +156,7 @@ export default function Dashboard() {
 
   const firstName =
     profile?.name?.split(" ")[0] ??
-    firebaseUser?.displayName?.split(" ")[0] ??
+    getDisplayName(supabaseUser)?.split(" ")[0] ??
     "Atleta";
   const hour = new Date().getHours();
   const greeting =
@@ -258,9 +259,9 @@ export default function Dashboard() {
         </div>
         <div className="db-hero-right">
           <div className="db-desktop-avatar">
-            {firebaseUser?.photoURL || profile?.avatar_url ? (
+            {getAvatarUrl(supabaseUser) || profile?.avatar_url ? (
               <img
-                src={firebaseUser?.photoURL ?? profile?.avatar_url ?? ""}
+                src={getAvatarUrl(supabaseUser) ?? profile?.avatar_url ?? ""}
                 alt={firstName}
                 referrerPolicy="no-referrer"
               />

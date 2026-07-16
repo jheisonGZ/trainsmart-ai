@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { sendPasswordResetEmail } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { useAuth } from "../context/AuthContext";
-import { auth } from "../firebase";
 import { isSupabaseConfigured, supabaseConfigError } from "../lib/supabaseClient";
 import "./Login.css";
 
@@ -125,7 +123,7 @@ function Eye({ open }: { open: boolean }) {
 
 export default function Login() {
   const navigate = useNavigate();
-  const { signIn, signUp, signInWithGooglePopupFirebase } = useAuth();
+  const { signIn, signUp, signInWithGoogle, resetPassword } = useAuth();
   const [view, setView] = useState<View>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -326,7 +324,7 @@ export default function Login() {
     showLoading("Enviando correo...");
 
     try {
-      await sendPasswordResetEmail(auth, email);
+      await resetPassword(email);
       Swal.close();
       await showSuccess("Correo enviado. Revisa tu bandeja de entrada");
       switchView("login");
@@ -343,7 +341,7 @@ export default function Login() {
     showLoading("Conectando con Google...");
 
     try {
-      const result = await signInWithGooglePopupFirebase();
+      const result = await signInWithGoogle();
       Swal.close();
 
       if (result.redirected) {
