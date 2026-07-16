@@ -65,7 +65,7 @@
   font-weight: 700;
 }
 
-.pg-main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 44px; }
+.pg-main { max-width: 1400px; margin: 0 auto; padding: 28px 20px 44px; }
 
 .pg-hero h1 { font-size: 1.8rem; letter-spacing: -0.5px; }
 .pg-hero p { margin-top: 6px; color: var(--muted); }
@@ -73,7 +73,7 @@
 .pg-kpis {
   margin-top: 18px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
 }
 
@@ -91,6 +91,7 @@
   margin-top: 12px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: stretch;
   gap: 12px;
 }
 
@@ -99,6 +100,17 @@
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 16px;
+}
+
+.pg-cards > .pg-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pg-cards > .pg-card > .viz-bar-chart,
+.pg-cards > .pg-card > .pg-list {
+  flex: 1;
 }
 
 .pg-empty-copy {
