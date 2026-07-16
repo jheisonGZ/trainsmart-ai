@@ -5,6 +5,7 @@ import { playLoginGreeting } from "../lib/loginGreeting";
 import { supabase, supabaseConfigError } from "../lib/supabaseClient";
 
 const SESSION_WAIT_TIMEOUT_MS = 10_000;
+const SESSION_POLL_INTERVAL_MS = 400;
 
 export default function AuthCallback() {
   const [status, setStatus] = useState<"waiting" | "done" | "error">("waiting");
@@ -17,6 +18,7 @@ export default function AuthCallback() {
       return;
     }
 
+    const client = supabase;
     let settled = false;
 
     const finish = (ok: boolean, message?: string) => {
@@ -26,6 +28,7 @@ export default function AuthCallback() {
 
       settled = true;
       clearTimeout(timeoutId);
+      clearInterval(pollId);
       subscription.unsubscribe();
 
       if (ok) {
@@ -37,32 +40,42 @@ export default function AuthCallback() {
       }
     };
 
-    supabase.auth
-      .getSession()
-      .then(({ data, error: sessionError }) => {
-        if (sessionError) {
-          finish(false, sessionError.message);
-          return;
-        }
+    // Supabase's client-side code exchange (detectSessionInUrl) can finish
+    // before this component mounts and subscribes, so onAuthStateChange
+    // alone can miss the event. Poll getSession() as the source of truth
+    // and treat the auth-state listener as a faster, best-effort shortcut.
+    const checkSession = () => {
+      client.auth
+        .getSession()
+        .then(({ data, error: sessionError }) => {
+          if (sessionError) {
+            finish(false, sessionError.message);
+            return;
+          }
 
-        if (data.session) {
-          finish(true);
-        }
-      })
-      .catch((sessionError: unknown) => {
-        finish(
-          false,
-          sessionError instanceof Error ? sessionError.message : undefined,
-        );
-      });
+          if (data.session) {
+            finish(true);
+          }
+        })
+        .catch((sessionError: unknown) => {
+          finish(
+            false,
+            sessionError instanceof Error ? sessionError.message : undefined,
+          );
+        });
+    };
+
+    checkSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = client.auth.onAuthStateChange((_event, session) => {
       if (session) {
         finish(true);
       }
     });
+
+    const pollId = setInterval(checkSession, SESSION_POLL_INTERVAL_MS);
 
     const timeoutId = setTimeout(() => {
       finish(
@@ -74,6 +87,7 @@ export default function AuthCallback() {
     return () => {
       settled = true;
       clearTimeout(timeoutId);
+      clearInterval(pollId);
       subscription.unsubscribe();
     };
   }, []);
