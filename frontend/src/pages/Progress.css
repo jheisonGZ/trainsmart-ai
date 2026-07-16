@@ -13,8 +13,12 @@
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
-  font-family: "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-body);
   overflow-x: hidden;
+}
+
+.pg-logo {
+  font-family: var(--font-display);
 }
 
 .pg-header {
@@ -242,9 +246,10 @@
   font-size: 0.86rem;
   font-weight: 700;
   cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
-.pg-btn:hover { background: var(--r2); }
+.pg-btn:hover:not(:disabled) { background: var(--r2); transform: translateY(-1px); }
 
 .pg-btn--ghost {
   border: 1px solid var(--border);

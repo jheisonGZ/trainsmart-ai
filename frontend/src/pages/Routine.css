@@ -525,10 +525,12 @@
   font-size: 0.86rem;
   font-weight: 700;
   cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
-.rt-btn:hover {
+.rt-btn:hover:not(:disabled) {
   background: var(--r2);
+  transform: translateY(-1px);
 }
 
 .rt-btn:disabled {

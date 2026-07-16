@@ -12,7 +12,7 @@
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-body);
   display: flex;
   flex-direction: column;
 }
@@ -68,9 +68,10 @@
 .pf-back:hover { border-color: var(--r); color: var(--r); }
 
 .pf-logo {
-  font-size: 1.2rem;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
   font-weight: 800;
-  letter-spacing: -0.5px;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 .pf-logo span { color: var(--r); }

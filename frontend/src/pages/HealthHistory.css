@@ -9,7 +9,7 @@
 /* ── Layout ──────────────────────────────────────────────── */
 .hh {
   min-height: 100vh; background: var(--bg); color: var(--text);
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-body);
   display: flex; flex-direction: column;
 }
 
@@ -26,7 +26,7 @@
   cursor: pointer; font-size: 0.8rem; transition: all .2s;
 }
 .hh-back:hover { border-color: var(--r); color: var(--r); }
-.hh-logo { font-size: 1.1rem; font-weight: 800; }
+.hh-logo { font-family: var(--font-display); font-size: 1.2rem; font-weight: 800; }
 .hh-logo span { color: var(--r); }
 .hh-logo em { font-style: normal; font-size: 0.72em; color: var(--muted); margin-left: 2px; }
 .hh-header-badge {

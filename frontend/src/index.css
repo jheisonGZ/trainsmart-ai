@@ -1,5 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&display=swap');
+
 :root {
-  font-family: "Segoe UI", system-ui, sans-serif;
+  --font-display: "Bebas Neue", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-body);
   line-height: 1.5;
   font-weight: 400;
   color: #f0f0f0;
@@ -8,6 +12,13 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
 }
 
 *,

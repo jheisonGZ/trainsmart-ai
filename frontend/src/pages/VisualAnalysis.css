@@ -2,7 +2,7 @@
   min-height: 100vh;
   background: #080808;
   color: #f0f0f0;
-  font-family: "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-body);
 }
 
 .va-header {
@@ -32,7 +32,7 @@
 
 .va-back:hover { border-color: #ff4a2b; color: #ff4a2b; }
 
-.va-logo { font-size: 1.1rem; font-weight: 800; }
+.va-logo { font-family: var(--font-display); font-size: 1.2rem; font-weight: 800; }
 .va-logo span { color: #ff4a2b; }
 .va-logo em { font-style: normal; color: rgba(255,255,255,0.4); font-size: 0.72em; }
 
@@ -146,9 +146,10 @@
   font-size: 0.86rem;
   font-weight: 700;
   cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
-.va-btn:hover:not(:disabled) { background: #ff6a4a; }
+.va-btn:hover:not(:disabled) { background: #ff6a4a; transform: translateY(-1px); }
 .va-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .va-spin {
