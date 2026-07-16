@@ -1,9 +1,15 @@
 import type { NextFunction, Request, Response } from 'express';
+import multer from 'multer';
 import { ZodError } from 'zod';
 
 import { logger } from '../lib/logger';
 import { ApiError, sendError } from '../utils/api-response';
 import { sanitizeForLog } from '../utils/sanitize';
+
+const multerErrorMessages: Record<string, string> = {
+  LIMIT_FILE_SIZE: 'The image is too large. Maximum size is 10MB.',
+  LIMIT_UNEXPECTED_FILE: 'Unexpected file field in the upload.',
+};
 
 interface PostgresLikeError {
   code?: string;
@@ -27,6 +33,12 @@ export function errorMiddleware(
 
   if (error instanceof ZodError) {
     sendError(res, 'Validation error', 400, error.flatten());
+    return;
+  }
+
+  if (error instanceof multer.MulterError) {
+    logger.warn('Rejected file upload', { path: req.path, method: req.method, code: error.code });
+    sendError(res, multerErrorMessages[error.code] ?? error.message, 400);
     return;
   }
 
