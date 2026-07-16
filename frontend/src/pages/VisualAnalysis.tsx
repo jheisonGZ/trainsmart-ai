@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
@@ -12,6 +12,7 @@ import {
   Utensils,
 } from "lucide-react";
 
+import { useExerciseGifUrl } from "../components/ExerciseGif";
 import { ApiClientError, api } from "../lib/api";
 import type {
   BodyProgressAnalysis,
@@ -46,7 +47,7 @@ interface SectionConfig<T extends AnalysisRecord> {
   title: string;
   description: string;
   icon: ReactNode;
-  renderResult: (record: T) => ReactNode;
+  renderResult: (record: T, compact?: boolean) => ReactNode;
 }
 
 function AnalysisSection<T extends AnalysisRecord>({
@@ -270,7 +271,7 @@ function AnalysisSection<T extends AnalysisRecord>({
                       <img src={record.image_url} alt="" className="va-history-thumb" />
                     )}
                     <div className="va-history-body">
-                      {config.renderResult(record)}
+                      {config.renderResult(record, true)}
                       <span className="va-history-date">
                         {new Date(record.created_at).toLocaleString()}
                       </span>
@@ -312,19 +313,95 @@ const bodyConfig: SectionConfig<BodyProgressAnalysis> = {
   renderResult: (record) => <p className="va-result-text">{record.analysis_text}</p>,
 };
 
+function EquipmentGifCard({
+  name,
+  compact,
+  onUnavailable,
+}: {
+  name: string;
+  compact?: boolean;
+  onUnavailable: (name: string) => void;
+}) {
+  const { gifUrl, loading } = useExerciseGifUrl(name);
+  const [imgFailed, setImgFailed] = useState(false);
+  const unavailable = !loading && (!gifUrl || imgFailed);
+  const sizeClass = compact ? "" : " exercise-gif--lg";
+
+  useEffect(() => {
+    if (unavailable) {
+      onUnavailable(name);
+    }
+  }, [unavailable, name, onUnavailable]);
+
+  if (loading) {
+    return (
+      <div className="va-equipment-card">
+        <div className={`exercise-gif exercise-gif--loading${sizeClass}`} />
+      </div>
+    );
+  }
+
+  if (unavailable) {
+    return null;
+  }
+
+  return (
+    <div className="va-equipment-card">
+      <div className={`exercise-gif${sizeClass}`}>
+        <img
+          src={gifUrl ?? undefined}
+          alt={name}
+          loading="lazy"
+          onError={() => setImgFailed(true)}
+        />
+      </div>
+      <span>{name}</span>
+    </div>
+  );
+}
+
+function EquipmentGrid({ items, compact }: { items: string[]; compact?: boolean }) {
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  const handleUnavailable = useCallback((name: string) => {
+    setHidden((current) => {
+      if (current.has(name)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.add(name);
+      return next;
+    });
+  }, []);
+
+  if (hidden.size >= items.length) {
+    return null;
+  }
+
+  return (
+    <div className={`va-equipment-grid${compact ? " va-equipment-grid--compact" : ""}`}>
+      {items.map((item) => (
+        <EquipmentGifCard
+          key={item}
+          name={item}
+          compact={compact}
+          onUnavailable={handleUnavailable}
+        />
+      ))}
+    </div>
+  );
+}
+
 const environmentConfig: SectionConfig<EnvironmentAnalysis> = {
   apiPath: "/environment-images",
   title: "Entorno de entrenamiento",
   description: "Sube una foto de tu gimnasio o espacio de entrenamiento y detecta qué equipo tienes disponible.",
   icon: <Dumbbell size={18} />,
-  renderResult: (record) => (
+  renderResult: (record, compact) => (
     <div className="va-result-body">
       {record.equipment_detected.length > 0 && (
-        <div className="va-macro-row">
-          {record.equipment_detected.map((item) => (
-            <span key={item}>{item}</span>
-          ))}
-        </div>
+        <EquipmentGrid items={record.equipment_detected} compact={compact} />
       )}
       <p className="va-result-text">{record.analysis_text}</p>
     </div>

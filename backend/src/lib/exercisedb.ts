@@ -112,6 +112,44 @@ const ES_TO_EN_TERMS: Array<[string, string]> = [
   ['escaladores', 'mountain climber'],
   ['cuerda de batalla', 'battle rope'],
   ['swing con kettlebell', 'kettlebell swing'],
+
+  // Equipment nouns (used to show a representative exercise GIF for
+  // detected gym equipment in the environment analysis feature, not
+  // just full exercise names). Kept last so they only act as a
+  // fallback once none of the specific exercise phrases above match.
+  ['barra hexagonal', 'trap bar deadlift'],
+  ['barra olimpica', 'barbell'],
+  ['barra fija', 'pull up'],
+  ['barra de dominadas', 'pull up'],
+  ['banco plano', 'bench press'],
+  ['banco inclinado', 'incline bench press'],
+  ['banco de pesas', 'bench press'],
+  ['banco', 'bench press'],
+  ['maquina de poleas', 'cable'],
+  ['multiestacion', 'cable row'],
+  ['bandas de resistencia', 'resistance band'],
+  ['banda elastica', 'resistance band'],
+  ['bandas de suspension', 'trx row'],
+  ['rack de sentadillas', 'barbell squat'],
+  ['bicicleta estatica', 'cycling'],
+  ['cinta de correr', 'treadmill'],
+  ['cajon pliometrico', 'box jump'],
+  ['disco de peso', 'russian twist'],
+  ['mancuernas', 'dumbbell'],
+  ['mancuerna', 'dumbbell'],
+  ['barra', 'barbell'],
+  ['polea', 'cable'],
+  ['kettlebell', 'kettlebell swing'],
+  ['rack', 'barbell squat'],
+  ['colchoneta', 'sit up'],
+  ['esterilla', 'sit up'],
+  ['caminadora', 'treadmill'],
+  ['bicicleta', 'cycling'],
+  ['balon medicinal', 'medicine ball slam'],
+  ['pelota medicinal', 'medicine ball slam'],
+  ['step', 'step up'],
+  ['trx', 'trx row'],
+  ['disco', 'russian twist'],
 ];
 
 function normalizeName(exerciseName: string): string {
