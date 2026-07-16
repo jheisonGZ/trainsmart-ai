@@ -319,6 +319,25 @@ export async function getRecentFeedbackSummary(
     .join('\n');
 }
 
+export async function deleteAllSessionsForUser(supabase: RequestSupabaseClient, userId: string) {
+  const { data: rows, error: selectError } = await supabase
+    .from('workout_sessions')
+    .select('id')
+    .eq('user_id', userId)
+    .returns<Array<{ id: string }>>();
+
+  throwIfSupabaseError(selectError, 'Failed to list workout sessions for deletion.');
+
+  const { error: deleteError } = await supabase
+    .from('workout_sessions')
+    .delete()
+    .eq('user_id', userId);
+
+  throwIfSupabaseError(deleteError, 'Failed to delete workout sessions.');
+
+  return (rows ?? []).map((row) => row.id);
+}
+
 export async function getLatestSessionForRoutineDay(
   supabase: RequestSupabaseClient,
   userId: string,

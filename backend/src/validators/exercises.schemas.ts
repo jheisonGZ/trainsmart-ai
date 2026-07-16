@@ -39,4 +39,9 @@ export const exerciseIdParamSchema = z.object({
   id: z.string().uuid(),
 });
 
+export const exerciseGifQuerySchema = z.object({
+  name: z.string().trim().min(1).max(200),
+});
+
 export type ExerciseQueryInput = z.infer<typeof exerciseQuerySchema>;
+export type ExerciseGifQueryInput = z.infer<typeof exerciseGifQuerySchema>;

@@ -1,0 +1,307 @@
+.va {
+  min-height: 100vh;
+  background: #080808;
+  color: #f0f0f0;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.va-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: rgba(10,10,10,0.84);
+  backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.va-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: transparent;
+  color: rgba(255,255,255,0.62);
+  border-radius: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.va-back:hover { border-color: #ff4a2b; color: #ff4a2b; }
+
+.va-logo { font-size: 1.1rem; font-weight: 800; }
+.va-logo span { color: #ff4a2b; }
+.va-logo em { font-style: normal; color: rgba(255,255,255,0.4); font-size: 0.72em; }
+
+.va-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #ff4a2b;
+  background: rgba(255,74,43,0.12);
+  border: 1px solid rgba(255,74,43,0.24);
+  border-radius: 20px;
+  padding: 6px 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.va-main { max-width: 900px; margin: 0 auto; padding: 28px 20px 44px; }
+
+.va-hero h1 { font-size: 1.8rem; letter-spacing: -0.5px; }
+.va-hero p { margin-top: 6px; color: rgba(255,255,255,0.58); }
+
+.va-tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding-bottom: 2px;
+}
+
+.va-tab {
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.5);
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.va-tab:hover { color: rgba(255,255,255,0.8); }
+
+.va-tab--active {
+  color: #ff4a2b;
+  border-bottom-color: #ff4a2b;
+}
+
+.va-section { margin-top: 20px; }
+
+.va-section-intro h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+}
+
+.va-section-intro p {
+  margin-top: 4px;
+  color: rgba(255,255,255,0.58);
+  font-size: 0.86rem;
+}
+
+.va-upload {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.va-upload-box {
+  width: 140px;
+  height: 140px;
+  border: 1px dashed rgba(255,255,255,0.2);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  background: #101010;
+  flex-shrink: 0;
+}
+
+.va-upload-box:hover { border-color: #ff4a2b; }
+
+.va-upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255,255,255,0.5);
+  font-size: 0.78rem;
+}
+
+.va-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.va-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 9px;
+  background: #ff4a2b;
+  color: #fff;
+  padding: 11px 18px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.va-btn:hover:not(:disabled) { background: #ff6a4a; }
+.va-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.va-spin {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: va-spin 0.7s linear infinite;
+}
+
+@keyframes va-spin {
+  to { transform: rotate(360deg); }
+}
+
+.va-error {
+  margin-top: 12px;
+  color: #ff6a6a;
+  font-size: 0.84rem;
+}
+
+.va-result {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255,74,43,0.08);
+  border: 1px solid rgba(255,74,43,0.2);
+}
+
+.va-result-body { display: flex; flex-direction: column; gap: 8px; }
+
+.va-result-text {
+  color: rgba(255,255,255,0.75);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.va-macro-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.va-macro-row span {
+  background: #181818;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.72);
+}
+
+.va-history {
+  margin-top: 26px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 14px;
+}
+
+.va-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.va-history-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.72);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.va-history-toggle:hover { color: #ff4a2b; }
+
+.va-history-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: transparent;
+  color: rgba(255,255,255,0.5);
+  border-radius: 8px;
+  padding: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.va-history-clear:hover:not(:disabled) {
+  border-color: #ff4a2b;
+  color: #ff4a2b;
+}
+
+.va-history-clear:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.va-history-chevron { transition: transform 0.18s ease; }
+.va-history-chevron--open { transform: rotate(180deg); }
+
+.va-history-content {
+  margin-top: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.va-muted { color: rgba(255,255,255,0.45); font-size: 0.84rem; }
+
+.va-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.va-history-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: #101010;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+}
+
+.va-history-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.va-history-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.va-history-date {
+  color: rgba(255,255,255,0.4);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 768px) {
+  .va-header { padding: 12px 14px; }
+  .va-back span, .va-badge span { display: none; }
+  .va-main { padding: 20px 14px 36px; }
+  .va-hero h1 { font-size: 1.45rem; }
+}

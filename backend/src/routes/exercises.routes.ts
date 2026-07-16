@@ -2,12 +2,14 @@ import { Router } from 'express';
 
 import {
   getExerciseController,
+  getExerciseGifController,
   getExerciseMediaController,
   listExercisesController,
 } from '../controllers/exercises.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { validateParams, validateQuery } from '../middlewares/validate.middleware';
 import {
+  exerciseGifQuerySchema,
   exerciseIdParamSchema,
   exerciseQuerySchema,
 } from '../validators/exercises.schemas';
@@ -15,6 +17,12 @@ import {
 const router = Router();
 
 router.get('/', authMiddleware, validateQuery(exerciseQuerySchema), listExercisesController);
+router.get(
+  '/gif',
+  authMiddleware,
+  validateQuery(exerciseGifQuerySchema),
+  getExerciseGifController,
+);
 router.get(
   '/:id/media',
   authMiddleware,

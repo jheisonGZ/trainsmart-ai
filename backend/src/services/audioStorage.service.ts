@@ -32,6 +32,16 @@ export async function uploadRoutineAudio(
   throwIfStorageError(error, 'Failed to upload routine audio.');
 }
 
+export async function removeRoutineAudioFiles(supabase: RequestSupabaseClient, paths: string[]) {
+  if (paths.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase.storage.from(env.SUPABASE_ROUTINE_AUDIO_BUCKET).remove(paths);
+
+  throwIfStorageError(error, 'Failed to remove stored routine audio.');
+}
+
 export async function createRoutineAudioSignedUrl(
   supabase: RequestSupabaseClient,
   path: string,

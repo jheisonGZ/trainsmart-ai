@@ -264,7 +264,8 @@
 .app-shell__page .pf,
 .app-shell__page .hh,
 .app-shell__page .rt,
-.app-shell__page .pg {
+.app-shell__page .pg,
+.app-shell__page .va {
   min-height: auto;
   background: transparent;
 }
@@ -272,7 +273,8 @@
 .app-shell__page .pf-header,
 .app-shell__page .hh-header,
 .app-shell__page .rt-header,
-.app-shell__page .pg-header {
+.app-shell__page .pg-header,
+.app-shell__page .va-header {
   display: none;
 }
 
@@ -285,7 +287,8 @@
 .app-shell__page .hh-main,
 .app-shell__page .hh-sum-main,
 .app-shell__page .rt-main,
-.app-shell__page .pg-main {
+.app-shell__page .pg-main,
+.app-shell__page .va-main {
   padding-top: 24px;
 }
 
@@ -327,7 +330,8 @@
   .app-shell__page .hh-main,
   .app-shell__page .hh-sum-main,
   .app-shell__page .rt-main,
-  .app-shell__page .pg-main {
+  .app-shell__page .pg-main,
+  .app-shell__page .va-main {
     padding-top: 16px;
   }
 }

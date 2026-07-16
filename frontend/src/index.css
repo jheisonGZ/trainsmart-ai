@@ -70,13 +70,41 @@ img {
 }
 
 .ts-spin {
+  position: relative;
   display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 74, 43, 0.25);
-  border-top-color: #ff4a2b;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  animation: ts-spin 0.6s linear infinite;
+  background: radial-gradient(circle at 35% 30%, #3c3c3c, #121212 72%);
+  border: 3px solid #ff4a2b;
+  box-shadow:
+    inset 0 0 0 5px #080808,
+    inset 0 0 0 7px rgba(255, 255, 255, 0.07);
+  animation: ts-spin 0.9s linear infinite;
+}
+
+.ts-spin::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #080808;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+}
+
+.ts-spin::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transform: translateX(-50%);
 }
 
 @keyframes ts-spin {

@@ -1,0 +1,56 @@
+.exercise-gif {
+  width: 92px;
+  height: 92px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.exercise-gif--lg {
+  width: 168px;
+  height: 168px;
+  border-radius: 16px;
+}
+
+.exercise-gif img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.exercise-gif--loading {
+  background: linear-gradient(
+    100deg,
+    #181818 30%,
+    #232323 50%,
+    #181818 70%
+  );
+  background-size: 200% 100%;
+  animation: exercise-gif-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes exercise-gif-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.exercise-gif--empty {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 640px) {
+  .exercise-gif {
+    width: 72px;
+    height: 72px;
+  }
+
+  .exercise-gif--lg {
+    width: 120px;
+    height: 120px;
+  }
+}

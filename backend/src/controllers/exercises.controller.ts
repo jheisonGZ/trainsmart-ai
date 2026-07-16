@@ -1,3 +1,4 @@
+import { fetchExerciseGifUrl } from '../lib/exercisedb';
 import {
   getExerciseDetail,
   getExerciseMediaList,
@@ -31,4 +32,11 @@ export const getExerciseMediaController = asyncHandler(async (req, res) => {
     req.params.id,
   );
   return sendSuccess(res, media);
+});
+
+export const getExerciseGifController = asyncHandler(async (req, res) => {
+  getRequestAuth(req);
+  const { name } = req.query as { name: string };
+  const gifUrl = await fetchExerciseGifUrl(name);
+  return sendSuccess(res, { gif_url: gifUrl });
 });

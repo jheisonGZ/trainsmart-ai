@@ -1,0 +1,194 @@
+.viz {
+  --viz-surface: #101010;
+  --viz-blue: #3987e5;
+  --viz-blue-track: #1c5cab;
+  --viz-text-primary: #f0f0f0;
+  --viz-text-secondary: #c3c2b7;
+  --viz-text-muted: #898781;
+  --viz-grid: #2c2c2a;
+}
+
+/* ── Stat tile ───────────────────────────────────────────── */
+.viz-stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.viz-stat-label {
+  font-size: 0.7rem;
+  color: var(--viz-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.viz-stat-value {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: var(--viz-text-primary);
+  line-height: 1.1;
+}
+
+.viz-stat-sublabel {
+  font-size: 0.76rem;
+  color: var(--viz-text-secondary);
+}
+
+/* ── Meter (ring) ────────────────────────────────────────── */
+.viz-meter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.viz-meter-svg-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.viz-meter-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.viz-meter-center strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--viz-text-primary);
+}
+
+.viz-meter-label {
+  font-size: 0.72rem;
+  color: var(--viz-text-muted);
+  text-align: center;
+}
+
+/* ── Vertical bar chart ──────────────────────────────────── */
+.viz-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 96px;
+}
+
+.viz-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  min-width: 0;
+}
+
+.viz-bar-track {
+  flex: 1;
+  width: 100%;
+  max-width: 22px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.viz-bar-fill {
+  width: 100%;
+  min-height: 3px;
+  background: var(--viz-blue);
+  border-radius: 4px 4px 0 0;
+  transition: opacity 0.15s ease;
+}
+
+.viz-bar-col:hover .viz-bar-fill {
+  opacity: 0.8;
+}
+
+.viz-bar-label {
+  font-size: 0.64rem;
+  color: var(--viz-text-muted);
+  white-space: nowrap;
+}
+
+/* ── Horizontal bar chart ────────────────────────────────── */
+.viz-hbar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.viz-hbar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-hbar-label {
+  font-size: 0.8rem;
+  color: var(--viz-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viz-hbar-track {
+  height: 10px;
+  background: var(--viz-grid);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.viz-hbar-fill {
+  height: 100%;
+  background: var(--viz-blue);
+  border-radius: 5px;
+  transition: opacity 0.15s ease;
+}
+
+.viz-hbar-row:hover .viz-hbar-fill {
+  opacity: 0.8;
+}
+
+.viz-hbar-value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--viz-text-primary);
+  min-width: 18px;
+  text-align: right;
+}
+
+/* ── Sparkline (small multiples) ─────────────────────────── */
+.viz-sparkline-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.viz-sparkline-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.viz-sparkline-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--viz-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viz-sparkline-delta {
+  font-size: 0.72rem;
+  color: var(--viz-text-secondary);
+  margin-top: 2px;
+}
+
+.viz-sparkline-delta strong {
+  color: var(--viz-blue);
+}

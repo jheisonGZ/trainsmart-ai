@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Sparkles,
   User,
   X,
 } from "lucide-react";
@@ -47,6 +48,12 @@ const navItems: NavItem[] = [
     label: "Rutinas",
     icon: <Dumbbell size={17} />,
     match: (pathname) => pathname.startsWith("/routine"),
+  },
+  {
+    path: "/visual-analysis",
+    label: "Análisis Visual",
+    icon: <Sparkles size={17} />,
+    match: (pathname) => pathname.startsWith("/visual-analysis"),
   },
   {
     path: "/progress",

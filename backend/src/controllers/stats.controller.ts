@@ -32,7 +32,7 @@ export const getHealthCheckController = asyncHandler(async (_req, res) => {
       connected: databaseConnected,
     },
     llm: {
-      configured: Boolean(env.OPENAI_API_KEY),
+      configured: Boolean(env.GROQ_API_KEY),
       model: env.LLM_MODEL,
     },
   };

@@ -10,6 +10,7 @@ import {
   Zap,
 } from "lucide-react";
 
+import ExerciseGif from "../components/ExerciseGif";
 import RequestStateCard from "../components/RequestStateCard";
 import { useAuth } from "../context/AuthContext";
 import { ApiClientError, api } from "../lib/api";
@@ -164,11 +165,8 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="db-loading">
-        <div className="db-loading-inner">
-          <span className="db-spin" />
-          <span>Cargando...</span>
-        </div>
+      <div className="ts-loading">
+        <span className="ts-spin" />
       </div>
     );
   }
@@ -322,6 +320,7 @@ export default function Dashboard() {
         ) : (
           <div style={{ display: "grid", gap: 18 }}>
             <div
+              className="db-today-card"
               style={{
                 padding: 18,
                 borderRadius: 14,
@@ -329,68 +328,76 @@ export default function Dashboard() {
                 background: "#181818",
               }}
             >
-              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.8rem" }}>
-                {todayRoutine.routine.title}
-              </p>
-              <h3 style={{ marginTop: 6, fontSize: "1.1rem" }}>
-                Día {todayRoutine.today.day_index}: {todayRoutine.today.day_label}
-              </h3>
-              <p style={{ marginTop: 8, color: "rgba(255,255,255,0.7)" }}>
-                Calentamiento: {todayRoutine.today.warmup_notes}
-              </p>
-              <div
-                style={{
-                  marginTop: 14,
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
-                <span
+              <div className="db-today-card__body">
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.8rem" }}>
+                  {todayRoutine.routine.title}
+                </p>
+                <h3 style={{ marginTop: 6, fontSize: "1.1rem" }}>
+                  Día {todayRoutine.today.day_index}: {todayRoutine.today.day_label}
+                </h3>
+                <p style={{ marginTop: 8, color: "rgba(255,255,255,0.7)" }}>
+                  Calentamiento: {todayRoutine.today.warmup_notes}
+                </p>
+                <div
                   style={{
-                    display: "inline-flex",
+                    marginTop: 14,
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
                     alignItems: "center",
-                    borderRadius: 999,
-                    padding: "7px 12px",
-                    fontSize: "0.78rem",
-                    fontWeight: 700,
-                    color: isTodayCompleted
-                      ? "#60a5fa"
-                      : isTodayInProgress
-                        ? "#ff8d75"
-                        : "#6ee7b7",
-                    background: isTodayCompleted
-                      ? "rgba(96,165,250,0.12)"
-                      : isTodayInProgress
-                        ? "rgba(255,74,43,0.12)"
-                        : "rgba(52,211,153,0.12)",
-                    border: isTodayCompleted
-                      ? "1px solid rgba(96,165,250,0.24)"
-                      : isTodayInProgress
-                        ? "1px solid rgba(255,74,43,0.24)"
-                        : "1px solid rgba(52,211,153,0.24)",
                   }}
                 >
-                  {isTodayCompleted
-                    ? "Día completado"
-                    : isTodayInProgress
-                      ? "Sesión en curso"
-                      : "Disponible"}
-                </span>
-                <span style={{ color: "rgba(255,255,255,0.62)", fontSize: "0.84rem" }}>
-                  {todayRoutine.completed_day_count}/{todayRoutine.total_day_count} días completados
-                </span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      borderRadius: 999,
+                      padding: "7px 12px",
+                      fontSize: "0.78rem",
+                      fontWeight: 700,
+                      color: isTodayCompleted
+                        ? "#60a5fa"
+                        : isTodayInProgress
+                          ? "#ff8d75"
+                          : "#6ee7b7",
+                      background: isTodayCompleted
+                        ? "rgba(96,165,250,0.12)"
+                        : isTodayInProgress
+                          ? "rgba(255,74,43,0.12)"
+                          : "rgba(52,211,153,0.12)",
+                      border: isTodayCompleted
+                        ? "1px solid rgba(96,165,250,0.24)"
+                        : isTodayInProgress
+                          ? "1px solid rgba(255,74,43,0.24)"
+                          : "1px solid rgba(52,211,153,0.24)",
+                    }}
+                  >
+                    {isTodayCompleted
+                      ? "Día completado"
+                      : isTodayInProgress
+                        ? "Sesión en curso"
+                        : "Disponible"}
+                  </span>
+                  <span style={{ color: "rgba(255,255,255,0.62)", fontSize: "0.84rem" }}>
+                    {todayRoutine.completed_day_count}/{todayRoutine.total_day_count} días completados
+                  </span>
+                </div>
+                {isTodayCompleted ? (
+                  <p style={{ marginTop: 12, color: "rgba(255,255,255,0.72)" }}>
+                    Ya terminaste este día. Aquí queda visible como referencia, pero ya no está pendiente ni se puede volver a cerrar.
+                  </p>
+                ) : null}
+                {todayRoutine.next_day ? (
+                  <p style={{ marginTop: 10, color: "rgba(255,255,255,0.58)" }}>
+                    Próximo día del plan: Día {todayRoutine.next_day.day_index} · {todayRoutine.next_day.day_label}
+                  </p>
+                ) : null}
               </div>
-              {isTodayCompleted ? (
-                <p style={{ marginTop: 12, color: "rgba(255,255,255,0.72)" }}>
-                  Ya terminaste este día. Aquí queda visible como referencia, pero ya no está pendiente ni se puede volver a cerrar.
-                </p>
-              ) : null}
-              {todayRoutine.next_day ? (
-                <p style={{ marginTop: 10, color: "rgba(255,255,255,0.58)" }}>
-                  Próximo día del plan: Día {todayRoutine.next_day.day_index} · {todayRoutine.next_day.day_label}
-                </p>
+
+              {todayRoutine.today.exercises[0] ? (
+                <div className="db-today-card__gif">
+                  <ExerciseGif name={todayRoutine.today.exercises[0].exercise_name} size="lg" />
+                </div>
               ) : null}
             </div>
 

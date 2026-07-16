@@ -208,6 +208,38 @@ export interface RoutineAudioAccess {
   status: "available";
 }
 
+export interface MealAnalysis {
+  id: string;
+  user_id: string;
+  image_storage_path: string;
+  food_names: string[];
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  created_at: string;
+  image_url?: string;
+}
+
+export interface BodyProgressAnalysis {
+  id: string;
+  user_id: string;
+  image_storage_path: string;
+  analysis_text: string;
+  created_at: string;
+  image_url?: string;
+}
+
+export interface EnvironmentAnalysis {
+  id: string;
+  user_id: string;
+  image_storage_path: string;
+  equipment_detected: string[];
+  analysis_text: string;
+  created_at: string;
+  image_url?: string;
+}
+
 export interface ProgressStatsResponse {
   total_sessions: number;
   sessions_per_week: Array<{ week: string; count: number }>;

@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import {
   addSessionExerciseController,
+  clearMySessionsController,
   createMySessionController,
   finishMySessionController,
   getMySessionController,
@@ -28,6 +29,7 @@ import {
 const router = Router();
 
 router.get('/me', authMiddleware, validateQuery(sessionListQuerySchema), listMySessionsController);
+router.delete('/me', authMiddleware, clearMySessionsController);
 router.post('/', authMiddleware, validateBody(createSessionSchema), createMySessionController);
 router.post(
   '/:sessionId/audio',

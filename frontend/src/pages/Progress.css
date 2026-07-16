@@ -14,6 +14,7 @@
   background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI", system-ui, sans-serif;
+  overflow-x: hidden;
 }
 
 .pg-header {
@@ -65,10 +66,27 @@
 .pg-hero h1 { font-size: 1.8rem; letter-spacing: -0.5px; }
 .pg-hero p { margin-top: 6px; color: var(--muted); }
 
-.pg-cards {
+.pg-kpis {
   margin-top: 18px;
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.pg-kpi {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.pg-kpi--meter {
+  justify-content: center;
+}
+
+.pg-cards {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 12px;
 }
 
@@ -79,12 +97,107 @@
   padding: 16px;
 }
 
+.pg-empty-copy {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.84rem;
+}
+
+/* ── Tus ejercicios (GIF-first spotlight cards) ──────────── */
+.pg-spotlight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+}
+
+.pg-spotlight {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  min-width: 0;
+}
+
+.pg-spotlight .exercise-gif--lg {
+  width: 100%;
+  max-width: 168px;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.pg-spotlight__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.pg-spotlight__body strong {
+  font-size: 0.84rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pg-spotlight__meta {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.pg-spotlight__delta {
+  color: var(--r2);
+}
+
+.pg-spotlight__spark {
+  width: 100%;
+  max-width: 140px;
+  line-height: 0;
+}
+
 .pg-card h2 {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   font-size: 0.95rem;
   margin-bottom: 10px;
+}
+
+.pg-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pg-card-head h2 {
+  margin-bottom: 0;
+}
+
+.pg-history-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  padding: 6px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pg-history-clear:hover:not(:disabled) {
+  border-color: var(--r);
+  color: var(--r);
+}
+
+.pg-history-clear:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .pg-card p,
@@ -141,13 +254,13 @@
 
 .pg-btn--ghost:hover { border-color: var(--r); color: var(--r); background: transparent; }
 
-@media (max-width: 900px) {
-  .pg-cards { grid-template-columns: 1fr; }
-}
-
 @media (max-width: 768px) {
   .pg-header { padding: 12px 14px; }
   .pg-back span, .pg-badge span { display: none; }
   .pg-main { padding: 20px 14px 36px; }
   .pg-hero h1 { font-size: 1.45rem; }
+}
+
+@media (max-width: 420px) {
+  .pg-spotlight-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
 }

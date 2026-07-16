@@ -1,5 +1,6 @@
 import {
   addExerciseToSession,
+  clearMySessions,
   createMySession,
   finishMySession,
   getMySession,
@@ -15,6 +16,11 @@ export const listMySessionsController = asyncHandler(async (req, res) => {
     req.query as never,
   );
   return sendSuccess(res, sessions);
+});
+
+export const clearMySessionsController = asyncHandler(async (req, res) => {
+  await clearMySessions(getRequestSupabase(req), getRequestAuth(req));
+  return sendSuccess(res, { cleared: true });
 });
 
 export const createMySessionController = asyncHandler(async (req, res) => {

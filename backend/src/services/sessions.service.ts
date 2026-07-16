@@ -3,6 +3,7 @@ import type { AuthUser } from '../types/auth.types';
 import {
   addSessionExercise,
   createSession,
+  deleteAllSessionsForUser,
   finishSession,
   getSessionById,
   getSessionExercises,
@@ -14,6 +15,7 @@ import type {
   SessionExerciseInput,
   SessionListQueryInput,
 } from '../validators/sessions.schemas';
+import { buildRoutineAudioStoragePath, removeRoutineAudioFiles } from './audioStorage.service';
 import { lockRoutineAudio } from './routineAudio.service';
 
 export async function listMySessions(
@@ -64,4 +66,12 @@ export async function finishMySession(
   const session = await finishSession(supabase, sessionId, auth.userId, input);
   await lockRoutineAudio(supabase, auth, sessionId);
   return session;
+}
+
+export async function clearMySessions(supabase: RequestSupabaseClient, auth: AuthUser) {
+  const sessionIds = await deleteAllSessionsForUser(supabase, auth.userId);
+  const audioPaths = sessionIds.map((sessionId) =>
+    buildRoutineAudioStoragePath(auth.userId, sessionId),
+  );
+  await removeRoutineAudioFiles(supabase, audioPaths);
 }

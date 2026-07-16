@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
-  Calendar,
   CheckCircle2,
   ClipboardList,
   Dumbbell,
@@ -10,15 +9,15 @@ import {
   RefreshCcw,
   ShieldCheck,
   Sparkles,
+  X,
 } from "lucide-react";
 
+import ExerciseGif from "../components/ExerciseGif";
 import RequestStateCard from "../components/RequestStateCard";
 import RoutineAudioPlayer from "../components/RoutineAudioPlayer";
 import { ApiClientError, api, clearApiClientState } from "../lib/api";
 import type {
   AuthMeResponse,
-  HealthHistoryRecord,
-  ProfileRecord,
   Routine,
   RoutineDashboardDay,
   RoutineDashboardResponse,
@@ -129,16 +128,6 @@ function getCompletedDayIds(sessions: WorkoutSession[]) {
   );
 }
 
-function inferDayFocus(day: RoutineDashboardDay) {
-  const mainExercises = day.exercises
-    .slice(0, 3)
-    .map((exercise) => exercise.exercise_name);
-
-  return mainExercises.length > 0
-    ? mainExercises.join(", ")
-    : "Trabajo general de acondicionamiento";
-}
-
 function getDayPreviewMeta(
   day: RoutineDashboardDay,
   currentDayId: string,
@@ -192,8 +181,7 @@ export default function Routine() {
   const [reloadKey, setReloadKey] = useState(0);
   const [busyAction, setBusyAction] = useState<BusyAction | null>(null);
   const [authState, setAuthState] = useState<AuthMeResponse | null>(null);
-  const [profile, setProfile] = useState<ProfileRecord | null>(null);
-  const [health, setHealth] = useState<HealthHistoryRecord | null>(null);
+  const [generatorOpen, setGeneratorOpen] = useState(false);
   const [routineDashboard, setRoutineDashboard] =
     useState<RoutineDashboardResponse | null>(null);
   const [routineToday, setRoutineToday] = useState<RoutineTodayResponse | null>(null);
@@ -251,6 +239,7 @@ export default function Routine() {
           completedDayIds,
         )
       : null;
+  const isViewingToday = !routineToday || previewDay?.id === routineToday.today.id;
 
   useEffect(() => {
     if (!routineToday) {
@@ -283,18 +272,15 @@ export default function Routine() {
   }, [activeDaySession?.id, dayBlocks.length, dayCompleted]);
 
   async function fetchRoutineSnapshot() {
-    const [authMe, profileData, healthData, sessions, dashboard, today, routines] =
-      await Promise.all([
-        api.getFresh<AuthMeResponse>("/auth/me"),
-        getOptionalResource(api.getFresh<ProfileRecord>("/profiles/me")),
-        getOptionalResource(api.getFresh<HealthHistoryRecord>("/health-history/me")),
-        api.getFresh<WorkoutSession[]>("/sessions/me", { limit: 10 }),
-        getOptionalResource(
-          api.getFresh<RoutineDashboardResponse>("/routines/current/dashboard"),
-        ),
-        getOptionalResource(api.getFresh<RoutineTodayResponse>("/routines/current/today")),
-        api.getFresh<Routine[]>("/routines/me"),
-      ]);
+    const [authMe, sessions, dashboard, today, routines] = await Promise.all([
+      api.getFresh<AuthMeResponse>("/auth/me"),
+      api.getFresh<WorkoutSession[]>("/sessions/me", { limit: 10 }),
+      getOptionalResource(
+        api.getFresh<RoutineDashboardResponse>("/routines/current/dashboard"),
+      ),
+      getOptionalResource(api.getFresh<RoutineTodayResponse>("/routines/current/today")),
+      api.getFresh<Routine[]>("/routines/me"),
+    ]);
 
     let pending: PendingReview | null = null;
 
@@ -310,8 +296,6 @@ export default function Routine() {
 
     return {
       authMe,
-      profileData,
-      healthData,
       sessions,
       dashboard,
       today,
@@ -334,8 +318,6 @@ export default function Routine() {
         }
 
         setAuthState(snapshot.authMe);
-        setProfile(snapshot.profileData);
-        setHealth(snapshot.healthData);
         setRoutineDashboard(snapshot.dashboard);
         setRoutineToday(snapshot.today);
         setPendingReview(snapshot.pending);
@@ -377,8 +359,6 @@ export default function Routine() {
   const refreshRoutineData = async () => {
     const snapshot = await fetchRoutineSnapshot();
     setAuthState(snapshot.authMe);
-    setProfile(snapshot.profileData);
-    setHealth(snapshot.healthData);
     setRoutineDashboard(snapshot.dashboard);
     setRoutineToday(snapshot.today);
     setPendingReview(snapshot.pending);
@@ -413,6 +393,7 @@ export default function Routine() {
 
       setPendingReview({ routine: result.routine, version: result.version });
       setCustomInstructions("");
+      setGeneratorOpen(false);
 
       await Alert.fire({
         icon: "success",
@@ -439,6 +420,7 @@ export default function Routine() {
       setPendingReview({ routine: result.routine, version: result.version });
       setRegenerateReason("");
       setCustomInstructions("");
+      setGeneratorOpen(false);
 
       await Alert.fire({
         icon: "success",
@@ -626,12 +608,20 @@ export default function Routine() {
     <div className="rt">
       <main className="rt-main">
         <section className="rt-hero">
-          <h1>Rutina personalizada</h1>
-          <p>
-            {readyToGenerate
-              ? "Gestiona tu rutina, revisa cambios propuestos y avanza por las sesiones del día sin perder el hilo."
-              : "Todavía faltan prerrequisitos antes de habilitar la generación y la operación completa de la rutina."}
-          </p>
+          <div>
+            <h1>Rutina personalizada</h1>
+            <p>
+              {readyToGenerate
+                ? "Tu día de hoy, de un vistazo."
+                : "Todavía faltan prerrequisitos antes de habilitar la generación y la operación completa de la rutina."}
+            </p>
+          </div>
+          {readyToGenerate && (
+            <button className="rt-btn" onClick={() => setGeneratorOpen(true)}>
+              <Sparkles size={14} />{" "}
+              {routineDashboard ? "Regenerar rutina" : "Generar rutina"}
+            </button>
+          )}
         </section>
 
         {!readyToGenerate && (
@@ -660,65 +650,11 @@ export default function Routine() {
         )}
 
         {readyToGenerate && (
-          <>
-            <section className="rt-grid">
-              <article className="rt-card">
-                <h2>
-                  <Sparkles size={16} /> Generación IA
-                </h2>
-                <p>
-                  Puedes enviar instrucciones extra para que la propuesta se adapte a tus preferencias, restricciones y estilo de entrenamiento.
-                </p>
-                <textarea
-                  className="rt-textarea"
-                  value={customInstructions}
-                  onChange={(event) => setCustomInstructions(event.target.value)}
-                  placeholder="Ej: prioriza ejercicios con mancuernas, evita movimientos sobre la cabeza..."
-                  rows={4}
-                  disabled={isBusy}
-                />
-                <div className="rt-actions rt-actions--start">
-                  {!routineDashboard ? (
-                    <button className="rt-btn" onClick={() => void handleGenerate()} disabled={isBusy}>
-                      {busyAction === "generate" ? "Generando..." : "Generar rutina"}
-                    </button>
-                  ) : (
-                    <>
-                      <input
-                        className="rt-input"
-                        value={regenerateReason}
-                        onChange={(event) => setRegenerateReason(event.target.value)}
-                        placeholder="Motivo de regeneración"
-                        disabled={isBusy}
-                      />
-                      <button className="rt-btn" onClick={() => void handleRegenerate()} disabled={isBusy}>
-                        <RefreshCcw size={14} />{" "}
-                        {busyAction === "regenerate" ? "Regenerando..." : "Regenerar"}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </article>
-
-              <article className="rt-card">
-                <h2>
-                  <Calendar size={16} /> Estado actual
-                </h2>
-                <ul>
-                  <li>Rutina activa: {routineDashboard ? routineDashboard.routine.title : "Aún no"}</li>
-                  <li>Versión pendiente: {pendingReview ? `V${pendingReview.version.version_number}` : "No"}</li>
-                  <li>Sesión abierta: {activeDaySession ? "Sí" : "No"}</li>
-                  <li>Perfil listo: {profile?.completed ? "Sí" : "No"}</li>
-                  <li>Salud lista: {health?.completed ? "Sí" : "No"}</li>
-                </ul>
-              </article>
-            </section>
-
-            {pendingReview && (
-              <section className="rt-grid rt-grid--single">
-                <article className="rt-card">
+          <div className="rt-col-main">
+              {pendingReview && (
+                <article className="rt-card rt-card--alert">
                   <h2>
-                    <ShieldCheck size={16} /> Revisión HITL pendiente
+                    <ShieldCheck size={16} /> Revisión pendiente
                   </h2>
                   <p>{pendingReview.version.llm_output.summary}</p>
                   {pendingReview.version.llm_output.safety_warnings.length > 0 && (
@@ -728,23 +664,26 @@ export default function Routine() {
                       ))}
                     </ul>
                   )}
-                  <div className="rt-plan-list">
-                    {pendingReview.version.llm_output.weekly_plan.map((day) => (
-                      <div key={`${pendingReview.version.id}-${day.day_index}`} className="rt-plan-day">
-                        <strong>
-                          Día {day.day_index}: {day.day_label}
-                        </strong>
-                        <p>{day.warmup_notes}</p>
-                        <ul>
-                          {day.exercises.map((exercise) => (
-                            <li key={`${day.day_index}-${exercise.exercise_name}`}>
-                              {exercise.exercise_name} · {exercise.sets}x{exercise.reps}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
+                  <details className="rt-collapsible">
+                    <summary>Ver plan semanal propuesto</summary>
+                    <div className="rt-plan-list">
+                      {pendingReview.version.llm_output.weekly_plan.map((day) => (
+                        <div key={`${pendingReview.version.id}-${day.day_index}`} className="rt-plan-day">
+                          <strong>
+                            Día {day.day_index}: {day.day_label}
+                          </strong>
+                          <p>{day.warmup_notes}</p>
+                          <ul>
+                            {day.exercises.map((exercise) => (
+                              <li key={`${day.day_index}-${exercise.exercise_name}`}>
+                                {exercise.exercise_name} · {exercise.sets}x{exercise.reps}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
                   <div className="rt-actions">
                     <button className="rt-btn rt-btn--ghost" onClick={() => void handleDiscard()} disabled={isBusy}>
                       Descartar
@@ -754,40 +693,10 @@ export default function Routine() {
                     </button>
                   </div>
                 </article>
-              </section>
-            )}
+              )}
 
-            {routineToday && (
-              <section className="rt-grid rt-grid--single">
-                <article className="rt-card">
-                  <h2>
-                    <Dumbbell size={16} /> Rutina activa de hoy
-                  </h2>
-
-                  <div className="rt-day-overview">
-                    <div>
-                      <p className="rt-day-label">
-                        Día {routineToday.today.day_index}: {routineToday.today.day_label}
-                      </p>
-                      <p className="rt-day-copy">
-                        Calentamiento: {routineToday.today.warmup_notes ?? "Sin indicaciones específicas."}
-                      </p>
-                    </div>
-                    <span className={`rt-pill rt-pill--${dayCompleted ? "completed" : activeDaySession ? "active" : "available"}`}>
-                      {dayCompleted
-                        ? "Día completado"
-                        : activeDaySession
-                          ? `${completedBlockCount}/${dayBlocks.length} sesiones cerradas`
-                          : `${dayBlocks.length} sesiones internas`}
-                    </span>
-                  </div>
-
-                  {activeDaySession && !dayCompleted ? (
-                    <RoutineAudioPlayer sessionId={activeDaySession.id} />
-                  ) : dayCompleted ? (
-                    <RoutineAudioPlayer sessionId={activeDaySession?.id ?? "completed"} disabled />
-                  ) : null}
-
+              {routineToday ? (
+                <article className="rt-card rt-card--today">
                   <div className="rt-days">
                     {routineDashboard?.days.map((day) => {
                       const dayMeta = getDayPreviewMeta(
@@ -805,8 +714,6 @@ export default function Routine() {
                           className={`rt-day-button${day.id === previewDay?.id ? " rt-day-button--preview" : ""}${
                             day.id === routineToday.today.id ? " rt-day-button--today" : ""
                           }`}
-                          onMouseEnter={() => setPreviewDayId(day.id)}
-                          onFocus={() => setPreviewDayId(day.id)}
                           onClick={() => setPreviewDayId(day.id)}
                         >
                           <span>{day.day_label}</span>
@@ -816,37 +723,31 @@ export default function Routine() {
                     })}
                   </div>
 
-                  {previewDay && previewMeta && (
-                    <div className="rt-day-preview">
-                      <div className="rt-day-preview__head">
+                  {isViewingToday ? (
+                    <>
+                      <div className="rt-day-overview">
                         <div>
-                          <strong>
-                            Día {previewDay.day_index}: {previewDay.day_label}
-                          </strong>
-                          <p>{previewMeta.note}</p>
+                          <p className="rt-day-label">
+                            Día {routineToday.today.day_index}: {routineToday.today.day_label}
+                          </p>
+                          <p className="rt-day-copy">
+                            Calentamiento: {routineToday.today.warmup_notes ?? "Sin indicaciones específicas."}
+                          </p>
                         </div>
-                        <span className={`rt-pill rt-pill--${previewMeta.tone}`}>
-                          {previewMeta.label}
+                        <span className={`rt-pill rt-pill--${dayCompleted ? "completed" : activeDaySession ? "active" : "available"}`}>
+                          {dayCompleted
+                            ? "Día completado"
+                            : activeDaySession
+                              ? `${completedBlockCount}/${dayBlocks.length} sesiones cerradas`
+                              : `${dayBlocks.length} sesiones internas`}
                         </span>
                       </div>
 
-                      <div className="rt-day-preview__meta">
-                        <span>Posición: {previewDay.day_index} de {routineDashboard?.days.length ?? 0}</span>
-                        <span>Sesiones internas: {buildWorkoutBlocks(previewDay).length}</span>
-                        <span>Ejercicios: {previewDay.exercises.length}</span>
-                      </div>
-
-                      <p className="rt-day-preview__focus">
-                        Enfoque estimado: {inferDayFocus(previewDay)}
-                      </p>
-
-                      <div className="rt-day-preview__tags">
-                        {previewDay.exercises.slice(0, 4).map((exercise) => (
-                          <span key={`${previewDay.id}-${exercise.id}`}>{exercise.exercise_name}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                      {activeDaySession && !dayCompleted ? (
+                        <RoutineAudioPlayer sessionId={activeDaySession.id} />
+                      ) : dayCompleted ? (
+                        <RoutineAudioPlayer sessionId={activeDaySession?.id ?? "completed"} disabled />
+                      ) : null}
 
                   <div className="rt-blocks">
                     {dayBlocks.map((block, index) => {
@@ -857,6 +758,7 @@ export default function Routine() {
                       const isAvailable = !activeDaySession && !dayCompleted && index === 0;
                       const isLocked = !isCompleted && !isCurrent && !isAvailable;
                       const isLastBlock = index === dayBlocks.length - 1;
+                      const isExpanded = isCurrent || isAvailable;
 
                       return (
                         <div
@@ -869,7 +771,7 @@ export default function Routine() {
                                 : isLocked
                                   ? " rt-block-card--locked"
                                   : " rt-block-card--available"
-                          }`}
+                          }${isExpanded ? "" : " rt-block-card--collapsed"}`}
                         >
                           <div className="rt-block-card__head">
                             <div>
@@ -887,17 +789,22 @@ export default function Routine() {
                             </span>
                           </div>
 
-                          <div className="rt-exercise-list">
-                            {block.exercises.map((exercise) => (
-                              <div key={exercise.id} className="rt-exercise-card">
-                                <strong>{exercise.exercise_name}</strong>
-                                <p>
-                                  {exercise.sets} series · {exercise.reps} reps · Descanso {exercise.rest_seconds ?? 0}s
-                                </p>
-                                {exercise.notes ? <span>{exercise.notes}</span> : null}
-                              </div>
-                            ))}
-                          </div>
+                          {isExpanded && (
+                            <div className="rt-exercise-list">
+                              {block.exercises.map((exercise) => (
+                                <div key={exercise.id} className="rt-exercise-card">
+                                  <ExerciseGif name={exercise.exercise_name} />
+                                  <div className="rt-exercise-card__body">
+                                    <strong>{exercise.exercise_name}</strong>
+                                    <p>
+                                      {exercise.sets}×{exercise.reps} · {exercise.rest_seconds ?? 0}s
+                                    </p>
+                                    {exercise.notes ? <span>{exercise.notes}</span> : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
                           {isCompleted ? (
                             <div className="rt-block-note">
@@ -1007,27 +914,107 @@ export default function Routine() {
                       );
                     })}
                   </div>
-                </article>
-              </section>
-            )}
+                    </>
+                  ) : (
+                    previewDay &&
+                    previewMeta && (
+                      <div className="rt-day-readonly">
+                        <div className="rt-day-preview__head">
+                          <div>
+                            <strong>
+                              Día {previewDay.day_index}: {previewDay.day_label}
+                            </strong>
+                            <p>{previewMeta.note}</p>
+                          </div>
+                          <span className={`rt-pill rt-pill--${previewMeta.tone}`}>
+                            {previewMeta.label}
+                          </span>
+                        </div>
 
-            {recentSessions.length > 0 && (
-              <section className="rt-grid rt-grid--single">
-                <article className="rt-card">
-                  <h2>
-                    <ClipboardList size={16} /> Sesiones recientes
-                  </h2>
-                  <ul>
-                    {recentSessions.slice(0, 5).map((session) => (
-                      <li key={session.id}>
-                        {session.session_date} · {session.ended_at ? "finalizada" : "en curso"}
-                      </li>
-                    ))}
-                  </ul>
+                        <p className="rt-day-preview__focus">
+                          Calentamiento: {previewDay.warmup_notes ?? "Sin indicaciones específicas."}
+                        </p>
+
+                        <div className="rt-exercise-list">
+                          {previewDay.exercises.map((exercise) => (
+                            <div key={exercise.id} className="rt-exercise-card">
+                              <ExerciseGif name={exercise.exercise_name} />
+                              <div className="rt-exercise-card__body">
+                                <strong>{exercise.exercise_name}</strong>
+                                <p>
+                                  {exercise.sets}×{exercise.reps} · {exercise.rest_seconds ?? 0}s
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
                 </article>
-              </section>
-            )}
-          </>
+              ) : (
+                !pendingReview && (
+                  <article className="rt-card">
+                    <h2>
+                      <Dumbbell size={16} /> Aún no tienes una rutina activa
+                    </h2>
+                    <p>Genera tu primera rutina con el botón de arriba para ver aquí tu día de hoy.</p>
+                  </article>
+                )
+              )}
+          </div>
+        )}
+
+        {generatorOpen && (
+          <div className="rt-modal-overlay" onClick={() => setGeneratorOpen(false)}>
+            <div className="rt-modal" onClick={(event) => event.stopPropagation()}>
+              <div className="rt-modal-head">
+                <h2>
+                  <Sparkles size={16} /> {routineDashboard ? "Regenerar rutina" : "Generar rutina"}
+                </h2>
+                <button
+                  type="button"
+                  className="rt-modal-close"
+                  onClick={() => setGeneratorOpen(false)}
+                  aria-label="Cerrar"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <p>
+                Instrucciones extra para adaptar la propuesta a tus preferencias, restricciones y estilo.
+              </p>
+              <textarea
+                className="rt-textarea"
+                value={customInstructions}
+                onChange={(event) => setCustomInstructions(event.target.value)}
+                placeholder="Ej: prioriza ejercicios con mancuernas, evita movimientos sobre la cabeza..."
+                rows={4}
+                disabled={isBusy}
+              />
+              <div className="rt-actions rt-actions--start">
+                {!routineDashboard ? (
+                  <button className="rt-btn" onClick={() => void handleGenerate()} disabled={isBusy}>
+                    {busyAction === "generate" ? "Generando..." : "Generar rutina"}
+                  </button>
+                ) : (
+                  <>
+                    <input
+                      className="rt-input"
+                      value={regenerateReason}
+                      onChange={(event) => setRegenerateReason(event.target.value)}
+                      placeholder="Motivo de regeneración"
+                      disabled={isBusy}
+                    />
+                    <button className="rt-btn" onClick={() => void handleRegenerate()} disabled={isBusy}>
+                      <RefreshCcw size={14} />{" "}
+                      {busyAction === "regenerate" ? "Regenerando..." : "Regenerar"}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="rt-actions">

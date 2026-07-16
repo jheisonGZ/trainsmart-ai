@@ -11,6 +11,7 @@ import Login from "../pages/Login";
 import Profile from "../pages/Profile";
 import Progress from "../pages/Progress";
 import Routine from "../pages/Routine";
+import VisualAnalysis from "../pages/VisualAnalysis";
 import { ApiClientError, api } from "../lib/api";
 import type { AuthMeResponse } from "../types/api";
 
@@ -162,6 +163,7 @@ export default function AppRoutes() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/health" element={<HealthHistory />} />
           <Route path="/routine" element={<Routine />} />
+          <Route path="/visual-analysis" element={<VisualAnalysis />} />
           <Route path="/progress" element={<Progress />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

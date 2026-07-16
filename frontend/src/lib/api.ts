@@ -91,9 +91,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
   const requestKey = `${method}:${options.auth === false ? "public" : "auth"}:${requestUrl}`;
 
   const executeRequest = async () => {
+    const isFormDataBody = options.body instanceof FormData;
     const headers = new Headers(options.headers);
 
-    if (!headers.has("Content-Type") && options.body !== undefined) {
+    if (!headers.has("Content-Type") && options.body !== undefined && !isFormDataBody) {
       headers.set("Content-Type", "application/json");
     }
 
@@ -115,7 +116,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
     const response = await fetch(requestUrl, {
       method,
       headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body: isFormDataBody
+        ? (options.body as FormData)
+        : options.body !== undefined
+          ? JSON.stringify(options.body)
+          : undefined,
     });
 
     const payload = (await response
