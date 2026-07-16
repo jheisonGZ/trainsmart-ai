@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 import { env } from '../config/env';
-import { PreconditionFailedError, ValidationError } from '../utils/api-response';
+import { PreconditionFailedError, RateLimitedError, ValidationError } from '../utils/api-response';
+import { parseRetryAfterSeconds } from '../utils/retry-after';
 import { logger } from './logger';
 
 const REQUEST_TIMEOUT_MS = 30000;
@@ -76,6 +77,15 @@ export async function analyzeImageWithPrompt(
     if (!isRetryable || attempt === MAX_ATTEMPTS) {
       const errorText = await response.text();
       logger.error('Gemini vision request failed', { status: response.status, body: errorText, attempt });
+
+      if (response.status === 429) {
+        const retryAfterSeconds = parseRetryAfterSeconds(response.headers, errorText);
+        throw new RateLimitedError(
+          'El analisis visual alcanzo su limite de uso temporal.',
+          retryAfterSeconds,
+        );
+      }
+
       throw new PreconditionFailedError(`Vision provider responded with status ${response.status}.`);
     }
 

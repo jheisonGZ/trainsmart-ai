@@ -1,0 +1,53 @@
+.rlc {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 74, 43, 0.08);
+  border: 1px solid rgba(255, 74, 43, 0.24);
+  border-radius: 12px;
+}
+
+.rlc-ring {
+  flex-shrink: 0;
+  animation: rlc-pulse 1.6s ease-in-out infinite;
+}
+
+.rlc-ring__fill {
+  transition: stroke-dashoffset 1s linear;
+}
+
+.rlc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rlc-message {
+  margin: 0;
+  font-size: 0.84rem;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.35;
+}
+
+.rlc-time {
+  margin: 0;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.rlc-time strong {
+  color: #ff6a4a;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes rlc-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}

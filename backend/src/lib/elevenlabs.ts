@@ -1,7 +1,8 @@
 import { ElevenLabsClient, ElevenLabsError } from '@elevenlabs/elevenlabs-js';
 
 import { elevenLabsConfig } from '../config/elevenlabs';
-import { ApiError, PreconditionFailedError } from '../utils/api-response';
+import { ApiError, PreconditionFailedError, RateLimitedError } from '../utils/api-response';
+import { parseRetryAfterSeconds } from '../utils/retry-after';
 
 interface GenerateSpeechInput {
   text: string;
@@ -37,7 +38,9 @@ function mapElevenLabsError(error: unknown): never {
     }
 
     if (error.statusCode === 429) {
-      throw new ApiError(429, 'Text-to-speech quota or rate limit reached.');
+      const bodyText = typeof error.body === 'string' ? error.body : JSON.stringify(error.body ?? '');
+      const retryAfterSeconds = parseRetryAfterSeconds(error.rawResponse?.headers, bodyText);
+      throw new RateLimitedError('La narracion por voz alcanzo su limite de uso temporal.', retryAfterSeconds);
     }
 
     if (error.statusCode && error.statusCode >= 400 && error.statusCode < 500) {

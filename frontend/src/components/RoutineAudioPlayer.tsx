@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Volume2 } from "lucide-react";
 
 import { ApiClientError, api } from "../lib/api";
+import { getRetryAfterSeconds } from "../lib/apiErrors";
+import RateLimitCountdown from "./RateLimitCountdown";
 import type { RoutineAudioAccess } from "../types/api";
 
 interface RoutineAudioPlayerProps {
@@ -43,6 +45,7 @@ export default function RoutineAudioPlayer({ sessionId }: RoutineAudioPlayerProp
   const [audioAccess, setAudioAccess] = useState<RoutineAudioAccess | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -50,6 +53,7 @@ export default function RoutineAudioPlayer({ sessionId }: RoutineAudioPlayerProp
   useEffect(() => {
     setAudioAccess(null);
     setErrorMessage(null);
+    setRetryAfterSeconds(null);
     setLoading(false);
     setIsPlaying(false);
     setCurrentTime(0);
@@ -91,6 +95,7 @@ export default function RoutineAudioPlayer({ sessionId }: RoutineAudioPlayerProp
 
     setLoading(true);
     setErrorMessage(null);
+    setRetryAfterSeconds(null);
 
     try {
       const access = await api.post<RoutineAudioAccess>(
@@ -101,7 +106,13 @@ export default function RoutineAudioPlayer({ sessionId }: RoutineAudioPlayerProp
       setCurrentTime(0);
       setDuration(0);
     } catch (error) {
-      setErrorMessage(getAudioErrorMessage(error));
+      const retryAfter = getRetryAfterSeconds(error);
+
+      if (retryAfter) {
+        setRetryAfterSeconds(retryAfter);
+      } else {
+        setErrorMessage(getAudioErrorMessage(error));
+      }
     } finally {
       setLoading(false);
     }
@@ -145,7 +156,7 @@ export default function RoutineAudioPlayer({ sessionId }: RoutineAudioPlayerProp
           type="button"
           className="rt-btn"
           onClick={() => void handleLoadAudio()}
-          disabled={loading}
+          disabled={loading || retryAfterSeconds !== null}
         >
           <Volume2 size={14} />
           {loading
@@ -155,6 +166,14 @@ export default function RoutineAudioPlayer({ sessionId }: RoutineAudioPlayerProp
               : "Escuchar rutina"}
         </button>
       </div>
+
+      {retryAfterSeconds !== null ? (
+        <RateLimitCountdown
+          seconds={retryAfterSeconds}
+          message="La narración por voz alcanzó su límite de uso temporal."
+          onComplete={() => setRetryAfterSeconds(null)}
+        />
+      ) : null}
 
       {audioAccess ? (
         <div className="rt-audio__player">

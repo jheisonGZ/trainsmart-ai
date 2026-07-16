@@ -69,7 +69,8 @@ function ExerciseSpotlightCard({
   }
 
   const weights = exercise.weights ?? [];
-  const delta = weights.length > 1 ? weights[weights.length - 1] - weights[0] : null;
+  const delta =
+    weights.length > 1 ? weights[weights.length - 1] - weights[0] : null;
 
   return (
     <div className="pg-spotlight">
@@ -82,7 +83,7 @@ function ExerciseSpotlightCard({
         />
       </div>
       <div className="pg-spotlight__body">
-        <strong>{exercise.name}</strong>
+        <strong title={exercise.name}>{exercise.name}</strong>
         <span className="pg-spotlight__meta">
           {exercise.count ? `${exercise.count}×` : null}
           {exercise.count && delta !== null ? " · " : null}
@@ -109,7 +110,9 @@ export default function Progress() {
   const [stats, setStats] = useState<ProgressStatsResponse | null>(null);
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [clearingSessions, setClearingSessions] = useState(false);
-  const [hiddenExerciseNames, setHiddenExerciseNames] = useState<Set<string>>(new Set());
+  const [hiddenExerciseNames, setHiddenExerciseNames] = useState<Set<string>>(
+    new Set(),
+  );
 
   const handleExerciseUnavailable = useCallback((name: string) => {
     setHiddenExerciseNames((current) => {
@@ -123,15 +126,22 @@ export default function Progress() {
     });
   }, []);
 
+  // Única fuente de recarga: la usan el montaje y el borrado de historial.
+  const reloadData = useCallback(async () => {
+    const [statsData, sessionsData] = await Promise.all([
+      api.get<ProgressStatsResponse>("/progress/stats", { weeks: 8 }),
+      api.get<WorkoutSession[]>("/sessions/me", { limit: 5 }),
+    ]);
+
+    return { statsData, sessionsData };
+  }, []);
+
   useEffect(() => {
     let active = true;
 
     async function loadProgress() {
       try {
-        const [statsData, sessionsData] = await Promise.all([
-          api.get<ProgressStatsResponse>("/progress/stats", { weeks: 8 }),
-          api.get<WorkoutSession[]>("/sessions/me", { limit: 5 }),
-        ]);
+        const { statsData, sessionsData } = await reloadData();
 
         if (!active) {
           return;
@@ -153,7 +163,7 @@ export default function Progress() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadData]);
 
   const handleClearSessions = async () => {
     if (sessions.length === 0 || clearingSessions) {
@@ -178,11 +188,7 @@ export default function Progress() {
     try {
       await api.delete("/sessions/me");
 
-      const [statsData, sessionsData] = await Promise.all([
-        api.get<ProgressStatsResponse>("/progress/stats", { weeks: 8 }),
-        api.get<WorkoutSession[]>("/sessions/me", { limit: 5 }),
-      ]);
-
+      const { statsData, sessionsData } = await reloadData();
       setStats(statsData);
       setSessions(sessionsData);
 
@@ -223,7 +229,10 @@ export default function Progress() {
     const merged = new Map<string, ExerciseSpotlightData>();
 
     for (const exercise of stats?.top_exercises ?? []) {
-      merged.set(exercise.exercise_name, { name: exercise.exercise_name, count: exercise.count });
+      merged.set(exercise.exercise_name, {
+        name: exercise.exercise_name,
+        count: exercise.count,
+      });
     }
 
     for (const exercise of stats?.weight_progression ?? []) {
@@ -232,7 +241,10 @@ export default function Progress() {
       if (existing) {
         existing.weights = weights;
       } else {
-        merged.set(exercise.exercise_name, { name: exercise.exercise_name, weights });
+        merged.set(exercise.exercise_name, {
+          name: exercise.exercise_name,
+          weights,
+        });
       }
     }
 
@@ -241,29 +253,42 @@ export default function Progress() {
       .slice(0, 6);
   })();
 
+  const hasExercises =
+    exerciseSpotlights.length > 0 &&
+    hiddenExerciseNames.size < exerciseSpotlights.length;
+
   return (
     <div className="pg">
       <header className="pg-header">
-        <button className="pg-back" onClick={() => navigate("/home", { replace: true })}>
-          <ArrowLeft size={15} /> <span>Dashboard</span>
-        </button>
-        <div className="pg-logo">
-          Train<span>Smart</span> <em>AI</em>
+        <div className="pg-header__left">
+          <button
+            className="pg-back"
+            onClick={() => navigate("/home", { replace: true })}
+          >
+            <ArrowLeft size={15} /> <span>Dashboard</span>
+          </button>
+          <div className="pg-logo">
+            Train<span>Smart</span> <em>AI</em>
+          </div>
         </div>
+
+        <div className="pg-header__title">
+          <h1>Seguimiento de progreso</h1>
+        </div>
+
         <div className="pg-badge">
           <BarChart3 size={13} /> <span>Métricas reales</span>
         </div>
       </header>
 
       <main className="pg-main">
-        <section className="pg-hero">
-          <h1>Seguimiento de progreso</h1>
-          <p>Tus métricas reales, de un vistazo.</p>
-        </section>
-
+        {/* ── Fila 1: KPIs compactos ── */}
         <section className="pg-kpis">
           <article className="pg-card pg-kpi">
-            <StatTile label="Sesiones totales" value={String(stats?.total_sessions ?? 0)} />
+            <StatTile
+              label="Sesiones totales"
+              value={String(stats?.total_sessions ?? 0)}
+            />
           </article>
           <article className="pg-card pg-kpi">
             <StatTile
@@ -273,23 +298,50 @@ export default function Progress() {
             />
           </article>
           <article className="pg-card pg-kpi pg-kpi--meter">
-            <Meter value={stats?.weekly_consistency ?? 0} label="Consistencia semanal" />
+            <Meter
+              value={stats?.weekly_consistency ?? 0}
+              label="Consistencia semanal"
+            />
           </article>
         </section>
 
-        <section className="pg-cards">
-          <article className="pg-card">
+        {/* ── Fila 2 (PROTAGONISTA): ejercicios con imágenes de la API.
+              Absorbe todo el alto sobrante del viewport ── */}
+        {hasExercises ? (
+          <section className="pg-card pg-exercises">
+            <h2>
+              <Flame size={16} /> Tus ejercicios
+            </h2>
+            <div className="pg-spotlight-grid">
+              {exerciseSpotlights.map((exercise) => (
+                <ExerciseSpotlightCard
+                  key={exercise.name}
+                  exercise={exercise}
+                  onUnavailable={handleExerciseUnavailable}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {/* ── Fila 3: gráfica + historial, compactos y de altura fija ── */}
+        <section className="pg-grid">
+          <article className="pg-card pg-card--fill">
             <h2>
               <TrendingUp size={16} /> Sesiones por semana
             </h2>
-            {weekBars.length > 0 ? (
-              <BarChart data={weekBars} />
-            ) : (
-              <p className="pg-empty-copy">Aún no hay sesiones registradas en este rango.</p>
-            )}
+            <div className="pg-chart-wrap">
+              {weekBars.length > 0 ? (
+                <BarChart data={weekBars} />
+              ) : (
+                <p className="pg-empty-copy">
+                  Aún no hay sesiones registradas en este rango.
+                </p>
+              )}
+            </div>
           </article>
 
-          <article className="pg-card">
+          <article className="pg-card pg-card--fill">
             <div className="pg-card-head">
               <h2>
                 <CalendarDays size={16} /> Historial reciente
@@ -324,31 +376,18 @@ export default function Progress() {
           </article>
         </section>
 
-        {exerciseSpotlights.length > 0 &&
-        hiddenExerciseNames.size < exerciseSpotlights.length ? (
-          <section className="pg-cards" style={{ gridTemplateColumns: "1fr" }}>
-            <article className="pg-card">
-              <h2>
-                <Flame size={16} /> Tus ejercicios
-              </h2>
-              <div className="pg-spotlight-grid">
-                {exerciseSpotlights.map((exercise) => (
-                  <ExerciseSpotlightCard
-                    key={exercise.name}
-                    exercise={exercise}
-                    onUnavailable={handleExerciseUnavailable}
-                  />
-                ))}
-              </div>
-            </article>
-          </section>
-        ) : null}
-
+        {/* ── Fila 4: acciones siempre visibles ── */}
         <div className="pg-actions">
-          <button className="pg-btn pg-btn--ghost" onClick={() => navigate("/home", { replace: true })}>
+          <button
+            className="pg-btn pg-btn--ghost"
+            onClick={() => navigate("/home", { replace: true })}
+          >
             Volver
           </button>
-          <button className="pg-btn" onClick={() => navigate("/routine", { replace: true })}>
+          <button
+            className="pg-btn"
+            onClick={() => navigate("/routine", { replace: true })}
+          >
             Registrar sesión
           </button>
         </div>

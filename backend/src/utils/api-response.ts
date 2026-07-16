@@ -56,6 +56,17 @@ export class PreconditionFailedError extends ApiError {
   }
 }
 
+export class RateLimitedError extends ApiError {
+  constructor(message = 'Rate limit reached', retryAfterSeconds?: number) {
+    super(
+      429,
+      message,
+      retryAfterSeconds !== undefined ? { retryAfterSeconds } : undefined,
+    );
+    this.name = 'RateLimitedError';
+  }
+}
+
 export function sendSuccess<T>(res: Response, data: T, statusCode = 200) {
   const payload: ApiSuccessResponse<T> = {
     success: true,

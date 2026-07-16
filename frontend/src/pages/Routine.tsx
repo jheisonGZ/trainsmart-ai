@@ -13,9 +13,11 @@ import {
 } from "lucide-react";
 
 import ExerciseGif from "../components/ExerciseGif";
+import RateLimitCountdown from "../components/RateLimitCountdown";
 import RequestStateCard from "../components/RequestStateCard";
 import RoutineAudioPlayer from "../components/RoutineAudioPlayer";
 import { ApiClientError, api, clearApiClientState } from "../lib/api";
+import { getRetryAfterSeconds } from "../lib/apiErrors";
 import type {
   AuthMeResponse,
   Routine,
@@ -180,6 +182,7 @@ export default function Routine() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [busyAction, setBusyAction] = useState<BusyAction | null>(null);
+  const [rateLimitSeconds, setRateLimitSeconds] = useState<number | null>(null);
   const [authState, setAuthState] = useState<AuthMeResponse | null>(null);
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [routineDashboard, setRoutineDashboard] =
@@ -383,20 +386,27 @@ export default function Routine() {
     }
 
     setBusyAction(actionKey);
+    setRateLimitSeconds(null);
 
     try {
       await action();
     } catch (error) {
       console.error(`Routine action "${actionKey}" failed`, error);
 
-      await Alert.fire({
-        icon: "error",
-        title: "No se pudo completar la acción",
-        text:
-          error instanceof ApiClientError
-            ? error.message
-            : "Intenta de nuevo en unos segundos.",
-      });
+      const retryAfter = getRetryAfterSeconds(error);
+
+      if (retryAfter) {
+        setRateLimitSeconds(retryAfter);
+      } else {
+        await Alert.fire({
+          icon: "error",
+          title: "No se pudo completar la acción",
+          text:
+            error instanceof ApiClientError
+              ? error.message
+              : "Intenta de nuevo en unos segundos.",
+        });
+      }
     } finally {
       setBusyAction(null);
     }
@@ -634,7 +644,13 @@ export default function Routine() {
             </p>
           </div>
           {readyToGenerate && (
-            <button className="rt-btn" onClick={() => setGeneratorOpen(true)}>
+            <button
+              className="rt-btn"
+              onClick={() => {
+                setRateLimitSeconds(null);
+                setGeneratorOpen(true);
+              }}
+            >
               <Sparkles size={14} />{" "}
               {routineDashboard ? "Regenerar rutina" : "Generar rutina"}
             </button>
@@ -1007,29 +1023,38 @@ export default function Routine() {
                 onChange={(event) => setCustomInstructions(event.target.value)}
                 placeholder="Ej: prioriza ejercicios con mancuernas, evita movimientos sobre la cabeza..."
                 rows={4}
-                disabled={isBusy}
+                disabled={isBusy || rateLimitSeconds !== null}
               />
-              <div className="rt-actions rt-actions--start">
-                {!routineDashboard ? (
-                  <button className="rt-btn" onClick={() => void handleGenerate()} disabled={isBusy}>
-                    {busyAction === "generate" ? "Generando..." : "Generar rutina"}
-                  </button>
-                ) : (
-                  <>
-                    <input
-                      className="rt-input"
-                      value={regenerateReason}
-                      onChange={(event) => setRegenerateReason(event.target.value)}
-                      placeholder="Motivo de regeneración"
-                      disabled={isBusy}
-                    />
-                    <button className="rt-btn" onClick={() => void handleRegenerate()} disabled={isBusy}>
-                      <RefreshCcw size={14} />{" "}
-                      {busyAction === "regenerate" ? "Regenerando..." : "Regenerar"}
+
+              {rateLimitSeconds !== null ? (
+                <RateLimitCountdown
+                  seconds={rateLimitSeconds}
+                  message="El generador de rutinas alcanzó su límite de uso temporal."
+                  onComplete={() => setRateLimitSeconds(null)}
+                />
+              ) : (
+                <div className="rt-actions rt-actions--start">
+                  {!routineDashboard ? (
+                    <button className="rt-btn" onClick={() => void handleGenerate()} disabled={isBusy}>
+                      {busyAction === "generate" ? "Generando..." : "Generar rutina"}
                     </button>
-                  </>
-                )}
-              </div>
+                  ) : (
+                    <>
+                      <input
+                        className="rt-input"
+                        value={regenerateReason}
+                        onChange={(event) => setRegenerateReason(event.target.value)}
+                        placeholder="Motivo de regeneración"
+                        disabled={isBusy}
+                      />
+                      <button className="rt-btn" onClick={() => void handleRegenerate()} disabled={isBusy}>
+                        <RefreshCcw size={14} />{" "}
+                        {busyAction === "regenerate" ? "Regenerando..." : "Regenerar"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

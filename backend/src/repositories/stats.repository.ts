@@ -11,7 +11,8 @@ export async function getUserProgressStats(
   const { count, error: countError } = await supabase
     .from('workout_sessions')
     .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .not('ended_at', 'is', null);
 
   throwIfSupabaseError(countError, 'Failed to count workout sessions.');
 
@@ -22,6 +23,7 @@ export async function getUserProgressStats(
     .from('workout_sessions')
     .select('session_date')
     .eq('user_id', userId)
+    .not('ended_at', 'is', null)
     .gte('session_date', getIsoDate(weeksAgo))
     .order('session_date', { ascending: true })
     .returns<Array<{ session_date: string }>>();
@@ -50,6 +52,7 @@ export async function getUserProgressStats(
     .from('workout_sessions')
     .select('session_date')
     .eq('user_id', userId)
+    .not('ended_at', 'is', null)
     .order('session_date', { ascending: false })
     .limit(365)
     .returns<Array<{ session_date: string }>>();
@@ -93,6 +96,7 @@ export async function getUserProgressStats(
     .from('workout_sessions')
     .select('id, session_date')
     .eq('user_id', userId)
+    .not('ended_at', 'is', null)
     .returns<Array<{ id: string; session_date: string }>>();
 
   throwIfSupabaseError(allSessionsError, 'Failed to fetch sessions for progress charts.');

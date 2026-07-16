@@ -13,7 +13,9 @@ import {
 } from "lucide-react";
 
 import { useExerciseGifUrl } from "../components/ExerciseGif";
+import RateLimitCountdown from "../components/RateLimitCountdown";
 import { ApiClientError, api } from "../lib/api";
+import { getRetryAfterSeconds } from "../lib/apiErrors";
 import type {
   BodyProgressAnalysis,
   EnvironmentAnalysis,
@@ -60,6 +62,7 @@ function AnalysisSection<T extends AnalysisRecord>({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState<number | null>(null);
   const [latestResult, setLatestResult] = useState<T | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<T[]>([]);
@@ -153,6 +156,7 @@ function AnalysisSection<T extends AnalysisRecord>({
 
     setAnalyzing(true);
     setError(null);
+    setRetryAfterSeconds(null);
 
     try {
       const formData = new FormData();
@@ -168,11 +172,17 @@ function AnalysisSection<T extends AnalysisRecord>({
         fileInputRef.current.value = "";
       }
     } catch (analyzeError) {
-      setError(
-        analyzeError instanceof ApiClientError
-          ? analyzeError.message
-          : "No se pudo analizar la imagen. Intenta de nuevo.",
-      );
+      const retryAfter = getRetryAfterSeconds(analyzeError);
+
+      if (retryAfter) {
+        setRetryAfterSeconds(retryAfter);
+      } else {
+        setError(
+          analyzeError instanceof ApiClientError
+            ? analyzeError.message
+            : "No se pudo analizar la imagen. Intenta de nuevo.",
+        );
+      }
     } finally {
       setAnalyzing(false);
     }
@@ -208,7 +218,7 @@ function AnalysisSection<T extends AnalysisRecord>({
 
         <button
           className="va-btn"
-          disabled={!selectedFile || analyzing}
+          disabled={!selectedFile || analyzing || retryAfterSeconds !== null}
           onClick={() => void handleAnalyze()}
         >
           {analyzing ? (
@@ -222,6 +232,14 @@ function AnalysisSection<T extends AnalysisRecord>({
           )}
         </button>
       </div>
+
+      {retryAfterSeconds !== null ? (
+        <RateLimitCountdown
+          seconds={retryAfterSeconds}
+          message="El análisis visual alcanzó su límite de uso temporal."
+          onComplete={() => setRetryAfterSeconds(null)}
+        />
+      ) : null}
 
       {error && <p className="va-error">{error}</p>}
 

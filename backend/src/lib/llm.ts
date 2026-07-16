@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 import { env } from '../config/env';
 import { ROUTINE_OUTPUT_SCHEMA } from '../prompts/output-schema';
-import { PreconditionFailedError, ValidationError } from '../utils/api-response';
+import { PreconditionFailedError, RateLimitedError, ValidationError } from '../utils/api-response';
+import { parseRetryAfterSeconds } from '../utils/retry-after';
 import { logger } from './logger';
 
 const REQUEST_TIMEOUT_MS = 30000;
@@ -182,6 +183,14 @@ export async function callLLM(
       status: response.status,
       body: errorText,
     });
+
+    if (response.status === 429) {
+      const retryAfterSeconds = parseRetryAfterSeconds(response.headers, errorText);
+      throw new RateLimitedError(
+        'El generador de rutinas alcanzo su limite de uso temporal.',
+        retryAfterSeconds,
+      );
+    }
 
     throw new PreconditionFailedError(
       `LLM provider responded with status ${response.status}.`,
