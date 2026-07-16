@@ -63,21 +63,3 @@ export async function createRoutineAudioNarration(
   throwIfSupabaseError(error, 'Failed to create routine audio narration.');
   return data;
 }
-
-export async function lockRoutineAudioBySession(
-  supabase: RequestSupabaseClient,
-  userId: string,
-  workoutSessionId: string,
-) {
-  const { error } = await supabase
-    .from('routine_audio_narrations')
-    .update({
-      status: 'locked',
-      locked_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId)
-    .eq('workout_session_id', workoutSessionId)
-    .eq('status', 'available');
-
-  throwIfSupabaseError(error, 'Failed to lock routine audio narration.');
-}

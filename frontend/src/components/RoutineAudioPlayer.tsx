@@ -6,15 +6,10 @@ import type { RoutineAudioAccess } from "../types/api";
 
 interface RoutineAudioPlayerProps {
   sessionId: string;
-  disabled?: boolean;
 }
 
 function getAudioErrorMessage(error: unknown) {
   if (error instanceof ApiClientError) {
-    if (error.status === 403) {
-      return "Audio no disponible despues de finalizar la rutina.";
-    }
-
     if (error.status === 412) {
       return "La narracion por voz no esta habilitada en este momento.";
     }
@@ -43,10 +38,7 @@ function formatTime(seconds: number) {
   return `${minutes}:${remaining.toString().padStart(2, "0")}`;
 }
 
-export default function RoutineAudioPlayer({
-  sessionId,
-  disabled = false,
-}: RoutineAudioPlayerProps) {
+export default function RoutineAudioPlayer({ sessionId }: RoutineAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [audioAccess, setAudioAccess] = useState<RoutineAudioAccess | null>(null);
   const [loading, setLoading] = useState(false);
@@ -63,15 +55,6 @@ export default function RoutineAudioPlayer({
     setCurrentTime(0);
     setDuration(0);
   }, [sessionId]);
-
-  useEffect(() => {
-    if (!disabled) {
-      return;
-    }
-
-    audioRef.current?.pause();
-    setAudioAccess(null);
-  }, [disabled]);
 
   useEffect(() => {
     return () => {
@@ -102,7 +85,7 @@ export default function RoutineAudioPlayer({
   }, [audioAccess]);
 
   const handleLoadAudio = async () => {
-    if (disabled || loading) {
+    if (loading) {
       return;
     }
 
@@ -151,20 +134,12 @@ export default function RoutineAudioPlayer({
     setCurrentTime(value);
   };
 
-  if (disabled) {
-    return (
-      <div className="rt-audio rt-audio--disabled">
-        Audio no disponible despues de finalizar la rutina.
-      </div>
-    );
-  }
-
   return (
     <div className="rt-audio">
       <div className="rt-audio__head">
         <div>
-          <strong>Guia en audio</strong>
-          <p>Escucha una descripcion breve de la rutina mientras la sesion este activa.</p>
+          <strong>Guía en audio</strong>
+          <p>Escucha la explicación de tu rutina las veces que quieras, antes, durante o después de entrenar.</p>
         </div>
         <button
           type="button"
@@ -176,8 +151,8 @@ export default function RoutineAudioPlayer({
           {loading
             ? "Generando audio..."
             : audioAccess
-              ? "Renovar acceso"
-              : "Escuchar descripcion"}
+              ? "Volver a escuchar"
+              : "Escuchar rutina"}
         </button>
       </div>
 

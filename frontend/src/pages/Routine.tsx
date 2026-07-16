@@ -221,6 +221,12 @@ export default function Routine() {
       (routineToday.today_status === "completed" ||
         completedDayIds.has(routineToday.today.id)),
   );
+  const completedTodaySession =
+    routineToday && dayCompleted
+      ? (recentSessions.find(
+          (session) => session.routine_day_id === routineToday.today.id && session.ended_at,
+        ) ?? null)
+      : null;
   const currentBlock =
     activeDaySession && !dayCompleted && dayBlocks.length > 0
       ? dayBlocks[Math.min(completedBlockCount, dayBlocks.length - 1)]
@@ -756,8 +762,8 @@ export default function Routine() {
 
                       {activeDaySession && !dayCompleted ? (
                         <RoutineAudioPlayer sessionId={activeDaySession.id} />
-                      ) : dayCompleted ? (
-                        <RoutineAudioPlayer sessionId={activeDaySession?.id ?? "completed"} disabled />
+                      ) : completedTodaySession ? (
+                        <RoutineAudioPlayer sessionId={completedTodaySession.id} />
                       ) : null}
 
                   <div className="rt-blocks">

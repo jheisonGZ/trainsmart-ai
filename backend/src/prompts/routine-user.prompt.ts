@@ -47,6 +47,7 @@ export function buildRoutineUserPrompt({
       'Evita consejos medicos y selecciones de ejercicios inseguras.',
       'Usa espanol neutro en todo el contenido textual.',
       'Prefiere nombres de ejercicios comunes en espanol y faciles de entender para principiantes.',
+      'Escribe todo el contenido para el usuario en tono cercano y motivador, explicando brevemente el porque de cada indicacion, como lo haria un entrenador personal.',
       'Si hay riesgos relevantes, incluyelos en safety_warnings.',
       'No dejes campos requeridos vacios.',
       'Cada dia debe incluir calentamiento, vuelta a la calma y al menos un ejercicio.',

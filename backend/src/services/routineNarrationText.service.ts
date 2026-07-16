@@ -47,19 +47,23 @@ export function buildRoutineNarrationText(input: BuildRoutineNarrationInput) {
   });
 
   const parts = [
-    `Rutina de hoy. El objetivo de esta sesion es ${dayLabel.toLowerCase()}.`,
-    summary ? `Contexto de la rutina: ${summary}.` : null,
-    warmup ? `Inicia con el calentamiento indicado: ${warmup}.` : null,
+    `Hola, soy tu guia de entrenamiento. La sesion de hoy es ${dayLabel.toLowerCase()}.`,
+    summary ? `${summary}.` : null,
+    warmup
+      ? `Empecemos por el calentamiento: ${warmup}. Esto prepara tus articulaciones y musculos, y reduce el riesgo de lesion antes del trabajo fuerte.`
+      : 'Empieza con unos minutos de movilidad y activacion antes del trabajo principal, asi llegas mejor preparado a los ejercicios de fuerza.',
     exerciseSentences.length > 0
-      ? `Luego realiza los ejercicios principales: ${exerciseSentences.join('; ')}.`
-      : 'Luego realiza los ejercicios registrados para esta sesion, respetando el orden indicado.',
+      ? `Ahora vamos con los ejercicios principales, en este orden: ${exerciseSentences.join('; ')}. Respeta los descansos entre series, son parte del entrenamiento, no tiempo perdido.`
+      : 'Ahora realiza los ejercicios registrados para esta sesion, respetando el orden indicado y los descansos entre series.',
     safetyWarnings.length > 0
-      ? `Advertencias importantes: ${safetyWarnings.join(' ')}`
+      ? `Antes de seguir, ten en cuenta esto: ${safetyWarnings.join(' ')}`
       : null,
-    cooldown ? `Cierra con esta indicacion: ${cooldown}.` : null,
-    'Mantén una tecnica controlada, respeta los descansos y evita compensaciones.',
-    'Si aparece dolor agudo o una molestia inusual, detén el ejercicio y registra la observacion al finalizar la sesion. No ignores señales de alarma.',
-    'Finaliza con calma y guarda tu feedback para ajustar el seguimiento.',
+    cooldown
+      ? `Para cerrar, no te saltes la vuelta a la calma: ${cooldown}. Ayuda a que tu cuerpo se recupere mas rapido para la proxima sesion.`
+      : 'Para cerrar, dedica unos minutos a estirar los musculos trabajados, ayuda a que tu cuerpo se recupere mejor.',
+    'Manten siempre una tecnica controlada: es preferible bajar el peso antes que perder la forma del ejercicio.',
+    'Si sientes un dolor agudo o algo que no es normal en ti, detente de inmediato y registralo al terminar la sesion. Esa informacion ajusta tus proximas rutinas.',
+    'Eso es todo por hoy. Buen entrenamiento.',
   ].filter(Boolean);
 
   return trimToMaxLength(parts.join(' ').replace(/\s+/g, ' ').trim());

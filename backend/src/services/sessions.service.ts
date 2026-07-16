@@ -16,7 +16,6 @@ import type {
   SessionListQueryInput,
 } from '../validators/sessions.schemas';
 import { buildRoutineAudioStoragePath, removeRoutineAudioFiles } from './audioStorage.service';
-import { lockRoutineAudio } from './routineAudio.service';
 
 export async function listMySessions(
   supabase: RequestSupabaseClient,
@@ -63,9 +62,7 @@ export async function finishMySession(
   sessionId: string,
   input: FinishSessionInput,
 ) {
-  const session = await finishSession(supabase, sessionId, auth.userId, input);
-  await lockRoutineAudio(supabase, auth, sessionId);
-  return session;
+  return finishSession(supabase, sessionId, auth.userId, input);
 }
 
 export async function clearMySessions(supabase: RequestSupabaseClient, auth: AuthUser) {

@@ -5,7 +5,6 @@ import type { RequestSupabaseClient } from '../lib/supabase/request';
 import {
   createRoutineAudioNarration,
   getAvailableRoutineAudioBySession,
-  lockRoutineAudioBySession,
 } from '../repositories/routine-audio.repository';
 import { getRoutineDayById, getRoutineVersionById } from '../repositories/routines.repository';
 import {
@@ -17,7 +16,6 @@ import type { RoutineDay, RoutineVersion } from '../types/routine.types';
 import type { WorkoutSession } from '../types/session.types';
 import {
   ConflictError,
-  ForbiddenError,
   NotFoundError,
   PreconditionFailedError,
 } from '../utils/api-response';
@@ -36,10 +34,6 @@ interface RoutineAudioAccessResponse {
 }
 
 function ensureSessionAllowsAudio(session: WorkoutSession) {
-  if (session.ended_at) {
-    throw new ForbiddenError('Routine audio is not available after finishing the workout session.');
-  }
-
   if (!session.started_at) {
     throw new ConflictError('Workout session has not started.');
   }
@@ -207,16 +201,3 @@ export async function generateOrGetRoutineAudio(
   );
 }
 
-export async function lockRoutineAudio(
-  supabase: RequestSupabaseClient,
-  auth: AuthUser,
-  workoutSessionId: string,
-) {
-  await lockRoutineAudioBySession(supabase, auth.userId, workoutSessionId);
-
-  logger.info('Routine audio locked', {
-    sessionId: workoutSessionId,
-    userId: auth.userId,
-    provider: 'elevenlabs',
-  });
-}
