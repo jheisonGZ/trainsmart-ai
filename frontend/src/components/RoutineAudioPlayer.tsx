@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Volume2 } from "lucide-react";
+import { Pause, Play, Volume2 } from "lucide-react";
 
 import { ApiClientError, api } from "../lib/api";
 import type { RoutineAudioAccess } from "../types/api";
@@ -33,6 +33,16 @@ function getAudioErrorMessage(error: unknown) {
     : "No fue posible cargar el audio de la rutina.";
 }
 
+function formatTime(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return "0:00";
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remaining = Math.floor(seconds % 60);
+  return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+}
+
 export default function RoutineAudioPlayer({
   sessionId,
   disabled = false,
@@ -41,11 +51,17 @@ export default function RoutineAudioPlayer({
   const [audioAccess, setAudioAccess] = useState<RoutineAudioAccess | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   useEffect(() => {
     setAudioAccess(null);
     setErrorMessage(null);
     setLoading(false);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
   }, [sessionId]);
 
   useEffect(() => {
@@ -63,6 +79,28 @@ export default function RoutineAudioPlayer({
     };
   }, []);
 
+  useEffect(() => {
+    const audio = audioRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleLoadedMetadata = () => setDuration(audio.duration);
+    const handleEnded = () => setIsPlaying(false);
+
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("ended", handleEnded);
+
+    return () => {
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("ended", handleEnded);
+    };
+  }, [audioAccess]);
+
   const handleLoadAudio = async () => {
     if (disabled || loading) {
       return;
@@ -76,11 +114,41 @@ export default function RoutineAudioPlayer({
         `/sessions/${sessionId}/audio`,
       );
       setAudioAccess(access);
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
     } catch (error) {
       setErrorMessage(getAudioErrorMessage(error));
     } finally {
       setLoading(false);
     }
+  };
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    if (audio.paused) {
+      void audio.play();
+      setIsPlaying(true);
+    } else {
+      audio.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  const handleSeek = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const audio = audioRef.current;
+    const value = Number(event.target.value);
+
+    if (audio) {
+      audio.currentTime = value;
+    }
+
+    setCurrentTime(value);
   };
 
   if (disabled) {
@@ -114,13 +182,33 @@ export default function RoutineAudioPlayer({
       </div>
 
       {audioAccess ? (
-        <audio
-          ref={audioRef}
-          className="rt-audio__player"
-          src={audioAccess.audioUrl}
-          controls
-          preload="none"
-        />
+        <div className="rt-audio__player">
+          <button
+            type="button"
+            className="rt-audio__toggle"
+            onClick={togglePlay}
+            aria-label={isPlaying ? "Pausar" : "Reproducir"}
+          >
+            {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+          </button>
+
+          <span className="rt-audio__time">{formatTime(currentTime)}</span>
+
+          <input
+            type="range"
+            className="rt-audio__seek"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={Math.min(currentTime, duration || 0)}
+            onChange={handleSeek}
+            aria-label="Progreso del audio"
+          />
+
+          <span className="rt-audio__time">{formatTime(duration)}</span>
+
+          <audio ref={audioRef} src={audioAccess.audioUrl} preload="metadata" />
+        </div>
       ) : null}
 
       {errorMessage ? <p className="rt-audio__error">{errorMessage}</p> : null}
