@@ -25,43 +25,30 @@
 
 .nf-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 640px;
   text-align: center;
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 44px 32px 32px;
+  padding: 32px 32px 36px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
 }
 
-.nf-icon-wrap {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 18px;
-  border-radius: 16px;
-  background: rgba(255, 74, 43, 0.12);
-  border: 1px solid rgba(255, 74, 43, 0.28);
-  color: var(--r);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.nf-illustration {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
 }
 
-.nf-code {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 5.2rem;
-  font-weight: 400;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  background: linear-gradient(135deg, var(--r), var(--r2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.nf-illustration svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  animation: nf-float 1.6s ease-in-out infinite alternate;
 }
 
 .nf-card h1 {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   font-size: 1.3rem;
   font-weight: 800;
   letter-spacing: -0.01em;
@@ -98,24 +85,76 @@
   transform: translateY(-1px);
 }
 
-.nf-hint {
-  margin-top: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: rgba(255, 255, 255, 0.32);
-  font-size: 0.74rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
 @media (max-width: 480px) {
   .nf-card {
-    padding: 36px 22px 26px;
+    padding: 24px 18px 28px;
   }
+}
 
-  .nf-code {
-    font-size: 3.4rem;
+/* ── Ilustración animada (adaptada de codepen.io/uiswarup/pen/dyoyLOp) ──── */
+
+/* Efecto de flotación del conjunto completo (reemplaza el translateY de anime.js) */
+@keyframes nf-float {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(10px);
+  }
+}
+
+/* Rebote/giro del "0" (reemplaza el translateX + scale + rotateY de anime.js) */
+.nf-illustration #zero {
+  transform-origin: bottom;
+  transform-box: fill-box;
+  animation: nf-zero-bounce 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes nf-zero-bounce {
+  0% {
+    transform: translateX(0) scale(1) rotateY(0deg);
+  }
+  50% {
+    transform: translateX(6px) scale(1.4) rotateY(90deg);
+  }
+  100% {
+    transform: translateX(10px) scale(1) rotateY(180deg);
+  }
+}
+
+/* Columpio de las dos figuras (igual que el original) */
+.nf-illustration #handboy {
+  animation: nf-swing ease-in-out 1.3s infinite alternate;
+  transform-origin: 98% 98%;
+  transform-box: fill-box;
+}
+
+.nf-illustration #girllight {
+  animation: nf-swing ease-in-out 1.3s infinite alternate;
+  transform-origin: 0% 97%;
+  transform-box: fill-box;
+}
+
+.nf-illustration #hairgirl {
+  animation: nf-swinghair ease-in-out 1.3s infinite alternate;
+  transform-origin: 60% 0%;
+  transform-box: fill-box;
+}
+
+@keyframes nf-swing {
+  0% {
+    transform: rotate(10deg);
+  }
+  100% {
+    transform: rotate(-10deg);
+  }
+}
+
+@keyframes nf-swinghair {
+  0% {
+    transform: rotate(6deg);
+  }
+  100% {
+    transform: rotate(-6deg);
   }
 }
