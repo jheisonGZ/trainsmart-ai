@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { useAuth } from "../context/AuthContext";
+import { playLoginGreeting } from "../lib/loginGreeting";
 import { isSupabaseConfigured, supabaseConfigError } from "../lib/supabaseClient";
 import "./Login.css";
 
@@ -261,6 +262,7 @@ export default function Login() {
       }
 
       await showSuccess("Bienvenido de vuelta");
+      void playLoginGreeting();
       navigate("/dashboard");
     } catch (error) {
       Swal.close();
@@ -309,6 +311,7 @@ export default function Login() {
       }
 
       await showSuccess("Cuenta creada correctamente");
+      void playLoginGreeting();
       navigate("/dashboard");
     } catch (error) {
       Swal.close();
@@ -349,6 +352,7 @@ export default function Login() {
       }
 
       await showSuccess("Sesión iniciada correctamente");
+      void playLoginGreeting();
       navigate("/dashboard");
     } catch (error) {
       Swal.close();

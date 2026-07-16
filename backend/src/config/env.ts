@@ -42,7 +42,7 @@ const envSchema = z.object({
   SUPABASE_ENVIRONMENT_IMAGES_BUCKET: z.string().min(1).default('environment-images-private'),
   GEMINI_API_KEY: z.string().default(''),
   GEMINI_BASE_URL: z.string().url().default('https://generativelanguage.googleapis.com/v1beta'),
-  GEMINI_VISION_MODEL: z.string().min(1).default('gemini-3.5-flash'),
+  GEMINI_VISION_MODEL: z.string().min(1).default('gemini-3.1-flash-lite'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
 }).superRefine((value, ctx) => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 
+import { playLoginGreeting } from "../lib/loginGreeting";
 import { supabase, supabaseConfigError } from "../lib/supabaseClient";
 
 const SESSION_WAIT_TIMEOUT_MS = 10_000;
@@ -28,6 +29,7 @@ export default function AuthCallback() {
       subscription.unsubscribe();
 
       if (ok) {
+        void playLoginGreeting();
         setStatus("done");
       } else {
         setError(message ?? "No se pudo completar el inicio de sesion con Google.");
