@@ -7,6 +7,20 @@ import { supabase, supabaseConfigError } from "../lib/supabaseClient";
 const SESSION_WAIT_TIMEOUT_MS = 10_000;
 const SESSION_POLL_INTERVAL_MS = 400;
 
+function getOAuthErrorFromUrl(): string | null {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const queryParams = new URLSearchParams(window.location.search);
+  const errorDescription =
+    hashParams.get("error_description") ?? queryParams.get("error_description");
+  const errorCode = hashParams.get("error") ?? queryParams.get("error");
+
+  if (!errorCode && !errorDescription) {
+    return null;
+  }
+
+  return (errorDescription ?? errorCode ?? "").replace(/\+/g, " ");
+}
+
 export default function AuthCallback() {
   const [status, setStatus] = useState<"waiting" | "done" | "error">("waiting");
   const [error, setError] = useState<string | null>(null);
@@ -14,6 +28,14 @@ export default function AuthCallback() {
   useEffect(() => {
     if (!supabase) {
       setError(supabaseConfigError);
+      setStatus("error");
+      return;
+    }
+
+    const oauthError = getOAuthErrorFromUrl();
+
+    if (oauthError) {
+      setError(`El proveedor de inicio de sesion devolvio un error: ${oauthError}`);
       setStatus("error");
       return;
     }
