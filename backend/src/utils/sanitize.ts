@@ -9,6 +9,17 @@ export function sanitizeForLog(value: unknown): unknown {
     return value;
   }
 
+  if (value instanceof Error) {
+    const extraProperties = Object.fromEntries(Object.entries(value));
+
+    return {
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+      ...(sanitizeForLog(extraProperties) as Record<string, unknown>),
+    };
+  }
+
   return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>(
     (accumulator, [key, itemValue]) => {
       if (SENSITIVE_KEY_PATTERN.test(key)) {
