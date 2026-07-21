@@ -8,19 +8,33 @@ interface GreetingAccess {
 }
 
 function playWithInteractionFallback(audio: HTMLAudioElement) {
-  audio.play().catch(() => {
-    const retry = () => {
-      document.removeEventListener("click", retry);
-      document.removeEventListener("keydown", retry);
-      document.removeEventListener("touchstart", retry);
-      void audio.play().catch((error) => {
-        console.warn("Login greeting playback failed on retry", error);
-      });
-    };
+  const cleanup = () => {
+    document.removeEventListener("click", retry);
+    document.removeEventListener("keydown", retry);
+    document.removeEventListener("touchstart", retry);
+  };
 
-    document.addEventListener("click", retry, { once: true });
-    document.addEventListener("keydown", retry, { once: true });
-    document.addEventListener("touchstart", retry, { once: true });
+  const retry = () => {
+    if (!audio.paused) {
+      cleanup();
+      return;
+    }
+
+    audio.play().catch((error) => {
+      console.warn("Login greeting playback failed on retry", error);
+    });
+  };
+
+  // Attach the retry listeners unconditionally: some browsers block autoplay
+  // without the play() promise ever rejecting, so we can't rely on .catch()
+  // alone to know a retry is needed.
+  document.addEventListener("click", retry);
+  document.addEventListener("keydown", retry);
+  document.addEventListener("touchstart", retry);
+  audio.addEventListener("playing", cleanup, { once: true });
+
+  audio.play().catch((error) => {
+    console.warn("Login greeting autoplay blocked, waiting for interaction", error);
   });
 }
 
