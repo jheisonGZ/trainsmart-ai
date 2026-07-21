@@ -1,6 +1,7 @@
 import type { RequestSupabaseClient } from '../lib/supabase/request';
 import { throwIfSupabaseError } from '../lib/supabase/errors';
 import type { EnvironmentAnalysis } from '../types/environment-analysis.types';
+import { NotFoundError } from '../utils/api-response';
 
 interface CreateEnvironmentAnalysisInput {
   userId: string;
@@ -25,6 +26,27 @@ export async function createEnvironmentAnalysis(
     .single<EnvironmentAnalysis>();
 
   throwIfSupabaseError(error, 'Failed to create environment analysis.');
+  return data;
+}
+
+export async function getEnvironmentAnalysisById(
+  supabase: RequestSupabaseClient,
+  id: string,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from('environment_analyses')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle<EnvironmentAnalysis>();
+
+  throwIfSupabaseError(error, 'Failed to fetch environment analysis.');
+
+  if (!data) {
+    throw new NotFoundError('Environment analysis not found');
+  }
+
   return data;
 }
 

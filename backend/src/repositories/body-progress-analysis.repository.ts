@@ -1,6 +1,7 @@
 import type { RequestSupabaseClient } from '../lib/supabase/request';
 import { throwIfSupabaseError } from '../lib/supabase/errors';
 import type { BodyProgressAnalysis } from '../types/body-progress-analysis.types';
+import { NotFoundError } from '../utils/api-response';
 
 interface CreateBodyProgressAnalysisInput {
   userId: string;
@@ -23,6 +24,27 @@ export async function createBodyProgressAnalysis(
     .single<BodyProgressAnalysis>();
 
   throwIfSupabaseError(error, 'Failed to create body progress analysis.');
+  return data;
+}
+
+export async function getBodyProgressAnalysisById(
+  supabase: RequestSupabaseClient,
+  id: string,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from('body_progress_analyses')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle<BodyProgressAnalysis>();
+
+  throwIfSupabaseError(error, 'Failed to fetch body progress analysis.');
+
+  if (!data) {
+    throw new NotFoundError('Body progress analysis not found');
+  }
+
   return data;
 }
 

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 
 import { env } from '../config/env';
 import { analyzeImageWithPrompt } from '../lib/gemini-vision';
@@ -9,6 +10,7 @@ import {
   listBodyProgressAnalyses,
 } from '../repositories/body-progress-analysis.repository';
 import type { AuthUser } from '../types/auth.types';
+import { ValidationError } from '../utils/api-response';
 import {
   buildImageStoragePath,
   createImageSignedUrl,
@@ -17,14 +19,41 @@ import {
 } from './imageStorage.service';
 
 const BODY_PROGRESS_PROMPT = [
-  'Eres un asistente de fitness. Analiza esta foto de progreso corporal del usuario',
-  'de forma objetiva, respetuosa y no clinica.',
-  'Describe en 3-4 oraciones en espanol: postura visible, complexion general y',
-  'cualquier observacion relevante para entrenamiento.',
+  'Eres un asistente de fitness. Mira esta imagen y determina primero si muestra a una',
+  'persona (una foto de progreso corporal).',
+  'Si la imagen NO muestra a una persona (por ejemplo es comida, un objeto, un paisaje, etc),',
+  'responde solo con este JSON exacto, sin texto adicional ni markdown:',
+  '{"is_person": false, "description": ""}',
+  'Si SI muestra a una persona, analiza la foto de progreso corporal de forma objetiva,',
+  'respetuosa y no clinica. Describe en 3-4 oraciones en espanol: postura visible,',
+  'complexion general y cualquier observacion relevante para entrenamiento.',
   'No hagas diagnosticos medicos ni des un porcentaje exacto de grasa corporal,',
   'solo observaciones cualitativas generales.',
-  'Responde solo con el texto de la descripcion, sin titulos ni markdown.',
+  'Responde solo con este JSON exacto, sin texto adicional ni markdown:',
+  '{"is_person": true, "description": "tu descripcion aqui"}',
 ].join(' ');
+
+const bodyProgressResultSchema = z.object({
+  is_person: z.boolean().default(true),
+  description: z.string().default(''),
+});
+
+function parseBodyProgressResult(rawText: string) {
+  const fencedMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const jsonText = fencedMatch?.[1]?.trim() ?? rawText.trim();
+
+  try {
+    const parsed = bodyProgressResultSchema.safeParse(JSON.parse(jsonText));
+
+    if (parsed.success) {
+      return parsed.data;
+    }
+  } catch {
+    // fall through to the raw-text fallback below
+  }
+
+  return { is_person: true, description: rawText.trim() };
+}
 
 export async function analyzeAndSaveBodyProgressImage(
   supabase: RequestSupabaseClient,
@@ -32,7 +61,16 @@ export async function analyzeAndSaveBodyProgressImage(
   image: Buffer,
   mimeType: string,
 ) {
-  const analysisText = await analyzeImageWithPrompt(image, mimeType, BODY_PROGRESS_PROMPT);
+  const rawText = await analyzeImageWithPrompt(image, mimeType, BODY_PROGRESS_PROMPT);
+  const { is_person, description } = parseBodyProgressResult(rawText);
+
+  if (!is_person) {
+    throw new ValidationError(
+      'La imagen no parece mostrar a una persona. Sube una foto tuya de progreso corporal.',
+    );
+  }
+
+  const analysisText = description;
   const path = buildImageStoragePath('body-progress-images', auth.userId, `${randomUUID()}.jpg`);
 
   await uploadImage(supabase, env.SUPABASE_BODY_PROGRESS_IMAGES_BUCKET, path, image, mimeType);

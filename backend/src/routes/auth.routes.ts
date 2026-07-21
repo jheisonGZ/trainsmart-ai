@@ -1,9 +1,13 @@
 import { Router } from 'express';
 
-import { getAuthenticatedUser, getLoginGreetingController } from '../controllers/auth.controller';
+import {
+  getAuthenticatedUser,
+  getLoginGreetingController,
+  getLogoutFarewellController,
+} from '../controllers/auth.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { validateQuery } from '../middlewares/validate.middleware';
-import { loginGreetingQuerySchema } from '../validators/auth.schemas';
+import { loginGreetingQuerySchema, logoutFarewellQuerySchema } from '../validators/auth.schemas';
 
 const router = Router();
 
@@ -13,6 +17,12 @@ router.get(
   authMiddleware,
   validateQuery(loginGreetingQuerySchema),
   getLoginGreetingController,
+);
+router.get(
+  '/farewell',
+  authMiddleware,
+  validateQuery(logoutFarewellQuerySchema),
+  getLogoutFarewellController,
 );
 
 export default router;

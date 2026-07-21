@@ -187,6 +187,46 @@
   line-height: 1.5;
 }
 
+.va-narration {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,74,43,0.18);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.va-narration-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(255,74,43,0.4);
+  background: transparent;
+  color: #ff6a4a;
+  border-radius: 9px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.va-narration-btn:hover:not(:disabled) {
+  background: rgba(255,74,43,0.14);
+}
+
+.va-narration-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.va-narration-audio {
+  height: 34px;
+  max-width: 260px;
+  flex: 1;
+}
+
 .va-macro-row {
   display: flex;
   flex-wrap: wrap;

@@ -75,6 +75,26 @@ function calcBmi(weight: number, heightCm: number) {
   return Number((weight / (meters * meters)).toFixed(1));
 }
 
+// Mucha gente escribe su altura en metros (ej: "1.75") en vez de centimetros
+// (175). Si el numero parece metros (menor a 3), lo convertimos a cm.
+function normalizeHeightToCm(raw: string): number {
+  const parsed = Number(raw.trim().replace(",", "."));
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return NaN;
+  }
+
+  return parsed < 3 ? Math.round(parsed * 100) : Math.round(parsed);
+}
+
+function formatHeightMeters(heightCm: number | null | undefined): string {
+  if (!heightCm) {
+    return "--";
+  }
+
+  return `${(heightCm / 100).toFixed(2)} m`;
+}
+
 function getAgeFromBirthDate(birthDate: string) {
   return Math.floor(
     (Date.now() - new Date(birthDate).getTime()) / (365.25 * 24 * 3600 * 1000),
@@ -236,7 +256,7 @@ function ProfileSummary({
               {
                 icon: <Ruler size={16} />,
                 label: "Altura",
-                value: `${profile.height_cm ?? "--"} cm`,
+                value: formatHeightMeters(profile.height_cm),
               },
               {
                 icon: <Zap size={16} />,
@@ -281,7 +301,9 @@ function ProfileSummary({
               </button>
               <button
                 className="pf-btn pf-btn--sec"
-                onClick={() => void signOut().then(() => navigate("/", { replace: true }))}
+                onClick={() =>
+                  void signOut({ farewell: true }).then(() => navigate("/", { replace: true }))
+                }
               >
                 Cerrar sesión
               </button>
@@ -319,7 +341,7 @@ function ProfileForm({
     existing?.weight_kg ? String(existing.weight_kg) : "",
   );
   const [height, setHeight] = useState(
-    existing?.height_cm ? String(existing.height_cm) : "",
+    existing?.height_cm ? (existing.height_cm / 100).toFixed(2) : "",
   );
   const [experience, setExperience] = useState(
     existing?.experience_level ?? "",
@@ -341,8 +363,11 @@ function ProfileForm({
   ];
 
   const age = birthDate ? getAgeFromBirthDate(birthDate) : null;
+  const normalizedHeightCm = height ? normalizeHeightToCm(height) : NaN;
   const bmi =
-    weight && height ? calcBmi(Number(weight), Number(height)) : null;
+    weight && height && Number.isFinite(normalizedHeightCm)
+      ? calcBmi(Number(weight), normalizedHeightCm)
+      : null;
   const bmiState = bmi
     ? getBmiPresentation({
         ...existing,
@@ -396,11 +421,13 @@ function ProfileForm({
         return false;
       }
 
-      if (!height || Number(height) < 100 || Number(height) > 250) {
+      const heightCm = height ? normalizeHeightToCm(height) : NaN;
+
+      if (!height || !Number.isFinite(heightCm) || heightCm < 100 || heightCm > 250) {
         void Alert.fire({
           icon: "warning",
           title: "Altura inválida",
-          text: "Ingresa un valor entre 100 y 250 cm.",
+          text: "Ingresa tu altura en centímetros (ej: 170) o en metros (ej: 1.70).",
         });
         return false;
       }
@@ -462,7 +489,7 @@ function ProfileForm({
         birth_date: birthDate,
         sex,
         weight_kg: Number(weight),
-        height_cm: Number(height),
+        height_cm: normalizeHeightToCm(height),
         experience_level: experience,
         goal,
         days_per_week: Number(daysPerWeek),
@@ -530,7 +557,9 @@ function ProfileForm({
           <span>{supabaseUser?.email ?? existing?.email}</span>
           <button
             className="pf-logout"
-            onClick={() => void signOut().then(() => navigate("/", { replace: true }))}
+            onClick={() =>
+              void signOut({ farewell: true }).then(() => navigate("/", { replace: true }))
+            }
           >
             Salir
           </button>
@@ -672,11 +701,12 @@ function ProfileForm({
                   />
                 </div>
                 <div className="pf-field">
-                  <label>Altura (cm)</label>
+                  <label>Altura (m)</label>
                   <input
                     type="number"
-                    placeholder="170"
-                    min={100}
+                    step="any"
+                    placeholder="1.70"
+                    min={1}
                     max={250}
                     value={height}
                     onChange={(event) => setHeight(event.target.value)}

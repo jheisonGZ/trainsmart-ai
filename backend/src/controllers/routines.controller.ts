@@ -59,7 +59,7 @@ export const generateRoutineController = asyncHandler(async (req, res) => {
     res,
     {
       ...result,
-      message: 'Routine generated successfully. Review and approve it before activation.',
+      message: 'Tu rutina quedó lista. Revísala y apruébala para activarla.',
     },
     201,
   );
@@ -77,7 +77,7 @@ export const regenerateRoutineController = asyncHandler(async (req, res) => {
     res,
     {
       ...result,
-      message: 'New proposed routine version generated successfully.',
+      message: 'Se generó una nueva propuesta de rutina.',
     },
     201,
   );
@@ -91,7 +91,7 @@ export const approveRoutineVersionController = asyncHandler(async (req, res) => 
   );
   return sendSuccess(res, {
     version,
-    message: 'Routine version approved and activated.',
+    message: 'La versión de la rutina quedó aprobada y activa.',
   });
 });
 
@@ -103,7 +103,7 @@ export const discardRoutineVersionController = asyncHandler(async (req, res) => 
   );
   return sendSuccess(res, {
     version,
-    message: 'Routine version discarded.',
+    message: 'La versión de la rutina fue descartada.',
   });
 });
 

@@ -1,9 +1,10 @@
 import { getHealthHistoryByUserId } from '../repositories/health.repository';
 import { getProfileByUserId } from '../repositories/profiles.repository';
 import { generateLoginGreeting } from '../services/loginGreeting.service';
+import { generateLogoutFarewell } from '../services/logoutFarewell.service';
 import { asyncHandler, sendSuccess } from '../utils/api-response';
 import { getRequestAuth, getRequestSupabase } from '../middlewares/auth.middleware';
-import type { LoginGreetingQueryInput } from '../validators/auth.schemas';
+import type { LoginGreetingQueryInput, LogoutFarewellQueryInput } from '../validators/auth.schemas';
 
 export const getAuthenticatedUser = asyncHandler(async (req, res) => {
   const auth = getRequestAuth(req);
@@ -33,4 +34,14 @@ export const getLoginGreetingController = asyncHandler(async (req, res) => {
   const greeting = await generateLoginGreeting(supabase, auth, name ?? null, hour ?? null);
 
   return sendSuccess(res, greeting);
+});
+
+export const getLogoutFarewellController = asyncHandler(async (req, res) => {
+  const auth = getRequestAuth(req);
+  const supabase = getRequestSupabase(req);
+  const { name } = req.query as unknown as LogoutFarewellQueryInput;
+
+  const farewell = await generateLogoutFarewell(supabase, auth, name ?? null);
+
+  return sendSuccess(res, farewell);
 });

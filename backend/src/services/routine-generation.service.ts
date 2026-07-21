@@ -1,7 +1,9 @@
+import { z } from 'zod';
+
 import type { RequestSupabaseClient } from '../lib/supabase/request';
 import type { AuthUser } from '../types/auth.types';
 import { buildRoutinePrompt } from '../prompts/prompt-builder';
-import { generateStructuredRoutine } from '../lib/llm';
+import { generateStructuredJson, generateStructuredRoutine } from '../lib/llm';
 import { getHealthHistoryByUserId } from '../repositories/health.repository';
 import { getLatestMetric } from '../repositories/metrics.repository';
 import {
@@ -12,11 +14,48 @@ import {
 import { getRecentFeedbackSummary } from '../repositories/sessions.repository';
 import { getProfileByUserId } from '../repositories/profiles.repository';
 import type { ContextSnapshot } from '../types/routine.types';
-import { PreconditionFailedError } from '../utils/api-response';
+import { PreconditionFailedError, ValidationError } from '../utils/api-response';
 import type {
   RoutineGenerateInput,
   RoutineRegenerateInput,
 } from '../validators/routines.schemas';
+
+const customInstructionsCheckSchema = z.object({
+  is_relevant: z.boolean(),
+});
+
+async function validateCustomInstructions(customInstructions: string | undefined) {
+  const trimmed = customInstructions?.trim();
+
+  if (!trimmed) {
+    return;
+  }
+
+  const result = await generateStructuredJson({
+    schema: customInstructionsCheckSchema,
+    messages: [
+      {
+        role: 'system',
+        content: [
+          'Evaluas si un texto es una instruccion valida para personalizar una rutina de',
+          'ejercicio (ej: preferencias de equipo, restricciones fisicas, dias disponibles,',
+          'tipo de entrenamiento, objetivos, lesiones, etc). Cualquier texto que no tenga',
+          'relacion con entrenamiento fisico o el uso de esta app de rutinas NO es valido.',
+          'Responde solo con este JSON exacto, sin texto adicional ni markdown:',
+          '{"is_relevant": true} o {"is_relevant": false}.',
+        ].join(' '),
+      },
+      { role: 'user', content: trimmed },
+    ],
+    temperature: 0,
+  });
+
+  if (!result.output.is_relevant) {
+    throw new ValidationError(
+      'Esas instrucciones no parecen tener relacion con tu entrenamiento. Escribe algo como preferencias de equipo, restricciones fisicas o el tipo de rutina que buscas.',
+    );
+  }
+}
 
 async function buildRoutineContext(
   supabase: RequestSupabaseClient,
@@ -102,6 +141,8 @@ export async function generateInitialRoutine(
   auth: AuthUser,
   input: RoutineGenerateInput,
 ) {
+  await validateCustomInstructions(input.customInstructions);
+
   const contextSnapshot = await buildRoutineContext(supabase, auth);
   const prompt = buildRoutinePrompt({
     contextSnapshot,
@@ -133,6 +174,7 @@ export async function regenerateRoutine(
   routineId: string,
   input: RoutineRegenerateInput,
 ) {
+  await validateCustomInstructions(input.customInstructions);
   await getRoutineById(supabase, routineId, auth.userId);
 
   const pendingVersion = await getPendingProposedVersion(supabase, routineId);

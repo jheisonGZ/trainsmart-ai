@@ -10,6 +10,7 @@ import {
   listMealAnalyses,
 } from '../repositories/meal-analysis.repository';
 import type { AuthUser } from '../types/auth.types';
+import { ValidationError } from '../utils/api-response';
 import {
   buildImageStoragePath,
   createImageSignedUrl,
@@ -18,15 +19,20 @@ import {
 } from './imageStorage.service';
 
 const MEAL_PROMPT = [
-  'Eres un nutricionista asistente. Mira esta foto de un plato de comida e identifica',
-  'que alimentos contiene y estima sus calorias y macronutrientes totales para la',
-  'porcion mostrada.',
+  'Eres un nutricionista asistente. Mira esta imagen y determina primero si muestra un plato',
+  'de comida real y comestible.',
+  'Si la imagen NO muestra comida (por ejemplo es un objeto, una persona, un animal, un paisaje,',
+  'una pantalla, etc), responde solo con este JSON exacto, sin texto adicional ni markdown:',
+  '{"is_food": false, "food_names": [], "calories": null, "protein_g": null, "carbs_g": null, "fat_g": null}',
+  'Si SI muestra comida, identifica que alimentos contiene y estima sus calorias y',
+  'macronutrientes totales para la porcion mostrada.',
   'Responde solo con este JSON exacto, sin texto adicional ni markdown:',
-  '{"food_names": ["alimento1", "alimento2"], "calories": 000, "protein_g": 00, "carbs_g": 00, "fat_g": 00}',
+  '{"is_food": true, "food_names": ["alimento1", "alimento2"], "calories": 000, "protein_g": 00, "carbs_g": 00, "fat_g": 00}',
   'Si no puedes estimar un valor con confianza, usa null en ese campo.',
 ].join(' ');
 
 const mealResultSchema = z.object({
+  is_food: z.boolean().default(true),
   food_names: z.array(z.string()).default([]),
   calories: z.number().nullable().default(null),
   protein_g: z.number().nullable().default(null),
@@ -48,7 +54,14 @@ function parseMealResult(rawText: string) {
     // fall through to the empty fallback below
   }
 
-  return { food_names: [], calories: null, protein_g: null, carbs_g: null, fat_g: null };
+  return {
+    is_food: true,
+    food_names: [],
+    calories: null,
+    protein_g: null,
+    carbs_g: null,
+    fat_g: null,
+  };
 }
 
 export async function analyzeAndSaveMealImage(
@@ -59,6 +72,11 @@ export async function analyzeAndSaveMealImage(
 ) {
   const rawText = await analyzeImageWithPrompt(image, mimeType, MEAL_PROMPT);
   const analysis = parseMealResult(rawText);
+
+  if (!analysis.is_food) {
+    throw new ValidationError('La imagen no parece mostrar comida. Sube una foto de tu plato.');
+  }
+
   const path = buildImageStoragePath('meal-images', auth.userId, `${randomUUID()}.jpg`);
 
   await uploadImage(supabase, env.SUPABASE_MEAL_IMAGES_BUCKET, path, image, mimeType);

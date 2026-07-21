@@ -17,6 +17,14 @@ export interface BodyMetric {
   weight_kg: number | null;
   height_cm: number | null;
   bmi: number | null;
+  waist_cm: number | null;
+  chest_cm: number | null;
+  arm_cm: number | null;
+  leg_cm: number | null;
+  hip_cm: number | null;
+  neck_cm: number | null;
+  body_fat_pct: number | null;
+  muscle_mass_kg: number | null;
   notes: string | null;
   created_at: string;
 }

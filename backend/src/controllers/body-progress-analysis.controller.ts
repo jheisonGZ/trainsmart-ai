@@ -1,4 +1,5 @@
 import { getRequestAuth, getRequestSupabase } from '../middlewares/auth.middleware';
+import { generateBodyProgressAnalysisNarration } from '../services/analysisNarration.service';
 import {
   analyzeAndSaveBodyProgressImage,
   clearMyBodyProgressAnalyses,
@@ -29,4 +30,14 @@ export const listBodyProgressAnalysesController = asyncHandler(async (req, res) 
 export const clearBodyProgressAnalysesController = asyncHandler(async (req, res) => {
   await clearMyBodyProgressAnalyses(getRequestSupabase(req), getRequestAuth(req));
   return sendSuccess(res, { cleared: true });
+});
+
+export const createBodyProgressAnalysisNarrationController = asyncHandler(async (req, res) => {
+  const access = await generateBodyProgressAnalysisNarration(
+    getRequestSupabase(req),
+    getRequestAuth(req),
+    req.params.id,
+  );
+
+  return sendSuccess(res, access, 201);
 });

@@ -155,7 +155,9 @@ export default function AppShell() {
         <button
           type="button"
           className="app-shell__signout"
-          onClick={() => void signOut().then(() => navigate("/", { replace: true }))}
+          onClick={() =>
+            void signOut({ farewell: true }).then(() => navigate("/", { replace: true }))
+          }
         >
           <LogOut size={15} />
           <span>{"Cerrar sesi\u00f3n"}</span>

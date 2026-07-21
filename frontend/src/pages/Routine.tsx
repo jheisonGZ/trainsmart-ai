@@ -397,6 +397,12 @@ export default function Routine() {
 
       if (retryAfter) {
         setRateLimitSeconds(retryAfter);
+      } else if (error instanceof ApiClientError && error.status === 422) {
+        await Alert.fire({
+          icon: "warning",
+          title: "Esas instrucciones no sirven",
+          text: error.message,
+        });
       } else {
         await Alert.fire({
           icon: "error",
@@ -595,11 +601,11 @@ export default function Routine() {
       console.error("Failed to finish workout session", error);
       await Alert.fire({
         icon: "error",
-        title: "No se pudo finalizar la sesiÃ³n",
+        title: "No se pudo finalizar la sesión",
         text:
           error instanceof Error
             ? error.message
-            : "La sesiÃ³n no quedÃ³ cerrada correctamente. Revisa tu conexiÃ³n o los permisos de la API y vuelve a intentarlo.",
+            : "No pudimos cerrar tu sesión de entrenamiento. Revisa tu conexión e intenta de nuevo.",
       });
     }
   };

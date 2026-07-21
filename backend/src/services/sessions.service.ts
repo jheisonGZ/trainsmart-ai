@@ -16,6 +16,7 @@ import type {
   SessionListQueryInput,
 } from '../validators/sessions.schemas';
 import { buildRoutineAudioStoragePath, removeRoutineAudioFiles } from './audioStorage.service';
+import { recordSessionCompletionEffects } from './progress-tracking.service';
 
 export async function listMySessions(
   supabase: RequestSupabaseClient,
@@ -62,7 +63,14 @@ export async function finishMySession(
   sessionId: string,
   input: FinishSessionInput,
 ) {
-  return finishSession(supabase, sessionId, auth.userId, input);
+  const session = await finishSession(supabase, sessionId, auth.userId, input);
+  const { newPersonalRecords, newAchievements } = await recordSessionCompletionEffects(
+    supabase,
+    auth.userId,
+    session,
+  );
+
+  return { ...session, newPersonalRecords, newAchievements };
 }
 
 export async function clearMySessions(supabase: RequestSupabaseClient, auth: AuthUser) {

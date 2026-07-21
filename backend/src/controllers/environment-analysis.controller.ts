@@ -1,4 +1,5 @@
 import { getRequestAuth, getRequestSupabase } from '../middlewares/auth.middleware';
+import { generateEnvironmentAnalysisNarration } from '../services/analysisNarration.service';
 import {
   analyzeAndSaveEnvironmentImage,
   clearMyEnvironmentAnalyses,
@@ -29,4 +30,14 @@ export const listEnvironmentAnalysesController = asyncHandler(async (req, res) =
 export const clearEnvironmentAnalysesController = asyncHandler(async (req, res) => {
   await clearMyEnvironmentAnalyses(getRequestSupabase(req), getRequestAuth(req));
   return sendSuccess(res, { cleared: true });
+});
+
+export const createEnvironmentAnalysisNarrationController = asyncHandler(async (req, res) => {
+  const access = await generateEnvironmentAnalysisNarration(
+    getRequestSupabase(req),
+    getRequestAuth(req),
+    req.params.id,
+  );
+
+  return sendSuccess(res, access, 201);
 });

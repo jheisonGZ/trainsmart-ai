@@ -10,6 +10,7 @@ import {
   Sparkles,
   Trash2,
   Utensils,
+  Volume2,
 } from "lucide-react";
 
 import { useExerciseGifUrl } from "../components/ExerciseGif";
@@ -20,6 +21,7 @@ import type {
   BodyProgressAnalysis,
   EnvironmentAnalysis,
   MealAnalysis,
+  RoutineAudioAccess,
 } from "../types/api";
 import "./VisualAnalysis.css";
 
@@ -64,6 +66,12 @@ function AnalysisSection<T extends AnalysisRecord>({
   const [error, setError] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState<number | null>(null);
   const [latestResult, setLatestResult] = useState<T | null>(null);
+  const [narrationAccess, setNarrationAccess] = useState<RoutineAudioAccess | null>(null);
+  const [narrationLoading, setNarrationLoading] = useState(false);
+  const [narrationError, setNarrationError] = useState<string | null>(null);
+  const [narrationRetryAfterSeconds, setNarrationRetryAfterSeconds] = useState<number | null>(
+    null,
+  );
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<T[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -167,6 +175,9 @@ function AnalysisSection<T extends AnalysisRecord>({
       setHistory((current) => [result, ...current]);
       setSelectedFile(null);
       setPreview(null);
+      setNarrationAccess(null);
+      setNarrationError(null);
+      setNarrationRetryAfterSeconds(null);
 
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -176,6 +187,12 @@ function AnalysisSection<T extends AnalysisRecord>({
 
       if (retryAfter) {
         setRetryAfterSeconds(retryAfter);
+      } else if (analyzeError instanceof ApiClientError && analyzeError.status === 422) {
+        await Alert.fire({
+          icon: "warning",
+          title: "Esa imagen no sirve para este análisis",
+          text: analyzeError.message,
+        });
       } else {
         setError(
           analyzeError instanceof ApiClientError
@@ -185,6 +202,37 @@ function AnalysisSection<T extends AnalysisRecord>({
       }
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleNarrate = async () => {
+    if (!latestResult || narrationLoading) {
+      return;
+    }
+
+    setNarrationLoading(true);
+    setNarrationError(null);
+    setNarrationRetryAfterSeconds(null);
+
+    try {
+      const access = await api.post<RoutineAudioAccess>(
+        `${config.apiPath}/${latestResult.id}/narration`,
+      );
+      setNarrationAccess(access);
+    } catch (narrationErr) {
+      const retryAfter = getRetryAfterSeconds(narrationErr);
+
+      if (retryAfter) {
+        setNarrationRetryAfterSeconds(retryAfter);
+      } else {
+        setNarrationError(
+          narrationErr instanceof ApiClientError
+            ? narrationErr.message
+            : "No se pudo generar el audio. Intenta de nuevo.",
+        );
+      }
+    } finally {
+      setNarrationLoading(false);
     }
   };
 
@@ -244,7 +292,45 @@ function AnalysisSection<T extends AnalysisRecord>({
       {error && <p className="va-error">{error}</p>}
 
       {latestResult && (
-        <div className="va-result">{config.renderResult(latestResult)}</div>
+        <div className="va-result">
+          {config.renderResult(latestResult)}
+
+          <div className="va-narration">
+            <button
+              type="button"
+              className="va-narration-btn"
+              onClick={() => void handleNarrate()}
+              disabled={narrationLoading || narrationRetryAfterSeconds !== null}
+            >
+              <Volume2 size={14} />
+              {narrationLoading
+                ? "Generando audio..."
+                : narrationAccess
+                  ? "Volver a escuchar"
+                  : "Escuchar análisis"}
+            </button>
+
+            {narrationAccess && (
+              <audio
+                key={narrationAccess.audioUrl}
+                src={narrationAccess.audioUrl}
+                controls
+                autoPlay
+                className="va-narration-audio"
+              />
+            )}
+          </div>
+
+          {narrationRetryAfterSeconds !== null ? (
+            <RateLimitCountdown
+              seconds={narrationRetryAfterSeconds}
+              message="La narración por voz alcanzó su límite de uso temporal."
+              onComplete={() => setNarrationRetryAfterSeconds(null)}
+            />
+          ) : null}
+
+          {narrationError && <p className="va-error">{narrationError}</p>}
+        </div>
       )}
 
       <div className="va-history">

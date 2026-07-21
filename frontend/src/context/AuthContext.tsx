@@ -8,6 +8,7 @@ import {
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 import { clearApiClientState, setApiAccessTokenGetter } from "../lib/api";
+import { playLogoutFarewell } from "../lib/logoutFarewell";
 import {
   isSupabaseConfigured,
   supabase,
@@ -25,6 +26,10 @@ interface SignUpOptions {
   displayName?: string;
 }
 
+interface SignOutOptions {
+  farewell?: boolean;
+}
+
 interface AuthContextValue {
   loading: boolean;
   supabaseUser: SupabaseUser | null;
@@ -36,7 +41,7 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<AuthOperationResult>;
   signInWithGoogle: () => Promise<AuthOperationResult>;
   resetPassword: (email: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: (options?: SignOutOptions) => Promise<void>;
   getSupabaseAccessToken: () => Promise<string | null>;
 }
 
@@ -263,7 +268,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function signOut() {
+  async function signOut(options?: SignOutOptions) {
+    if (options?.farewell) {
+      await playLogoutFarewell();
+    }
+
     if (supabase) {
       await supabase.auth.signOut();
     }

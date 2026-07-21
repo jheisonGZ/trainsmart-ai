@@ -129,6 +129,14 @@ export async function createBodyMetric(
       measured_at: input.measured_at ?? new Date().toISOString(),
       weight_kg: input.weight_kg ?? null,
       height_cm: input.height_cm ?? null,
+      waist_cm: input.waist_cm ?? null,
+      chest_cm: input.chest_cm ?? null,
+      arm_cm: input.arm_cm ?? null,
+      leg_cm: input.leg_cm ?? null,
+      hip_cm: input.hip_cm ?? null,
+      neck_cm: input.neck_cm ?? null,
+      body_fat_pct: input.body_fat_pct ?? null,
+      muscle_mass_kg: input.muscle_mass_kg ?? null,
       notes: input.notes ?? null,
     })
     .select('*')

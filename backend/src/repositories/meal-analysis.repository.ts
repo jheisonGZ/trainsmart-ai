@@ -1,6 +1,7 @@
 import type { RequestSupabaseClient } from '../lib/supabase/request';
 import { throwIfSupabaseError } from '../lib/supabase/errors';
 import type { MealAnalysis } from '../types/meal-analysis.types';
+import { NotFoundError } from '../utils/api-response';
 
 interface CreateMealAnalysisInput {
   userId: string;
@@ -33,6 +34,27 @@ export async function createMealAnalysis(
     .single<MealAnalysis>();
 
   throwIfSupabaseError(error, 'Failed to create meal analysis.');
+  return data;
+}
+
+export async function getMealAnalysisById(
+  supabase: RequestSupabaseClient,
+  id: string,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from('meal_analyses')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle<MealAnalysis>();
+
+  throwIfSupabaseError(error, 'Failed to fetch meal analysis.');
+
+  if (!data) {
+    throw new NotFoundError('Meal analysis not found');
+  }
+
   return data;
 }
 

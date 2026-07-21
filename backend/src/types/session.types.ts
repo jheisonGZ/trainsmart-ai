@@ -12,12 +12,18 @@ export interface WorkoutSession {
   difficulty_rating: number | null;
   pain_or_discomfort: boolean | null;
   notes: string | null;
+  duration_seconds: number | null;
+  total_volume_kg: number | null;
+  total_sets: number | null;
+  total_exercises: number | null;
+  calories_estimated: number | null;
   created_at: string;
 }
 
 export interface WorkoutSessionExercise {
   id: string;
   session_id: string;
+  user_id: string | null;
   exercise_id: string | null;
   exercise_name: string;
   exercise_order: number;
@@ -25,7 +31,9 @@ export interface WorkoutSessionExercise {
   planned_reps: string | null;
   performed_sets: number | null;
   performed_reps: string | null;
+  performed_reps_count: number | null;
   weight_kg: number | null;
   rest_seconds: number | null;
+  completed: boolean | null;
   created_at: string;
 }

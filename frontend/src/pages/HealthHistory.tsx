@@ -631,7 +631,9 @@ function HealthForm({
             ) : (
               <button
                 className="hh-btn-prev"
-                onClick={() => void signOut().then(() => navigate("/", { replace: true }))}
+                onClick={() =>
+                  void signOut({ farewell: true }).then(() => navigate("/", { replace: true }))
+                }
               >
                 Salir
               </button>

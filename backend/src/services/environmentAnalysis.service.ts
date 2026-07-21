@@ -10,6 +10,7 @@ import {
   listEnvironmentAnalyses,
 } from '../repositories/environment-analysis.repository';
 import type { AuthUser } from '../types/auth.types';
+import { ValidationError } from '../utils/api-response';
 import {
   buildImageStoragePath,
   createImageSignedUrl,
@@ -18,14 +19,19 @@ import {
 } from './imageStorage.service';
 
 const ENVIRONMENT_PROMPT = [
-  'Eres un asistente de fitness. Mira esta foto de un espacio de entrenamiento',
-  '(gimnasio o casa) e identifica que equipamiento de ejercicio es visible',
-  '(ej: mancuernas, barra, banco, maquina de poleas, banda elastica, kettlebell, etc).',
+  'Eres un asistente de fitness. Mira esta imagen y determina primero si muestra un espacio',
+  'de entrenamiento (gimnasio o casa) o equipamiento de ejercicio visible.',
+  'Si la imagen NO muestra nada relacionado con entrenamiento (por ejemplo comida, una persona',
+  'sin contexto de gimnasio, un paisaje no relacionado, etc), responde solo con este JSON',
+  'exacto, sin texto adicional ni markdown: {"is_environment": false, "equipment": [], "summary": ""}',
+  'Si SI es un espacio o equipo de entrenamiento, identifica que equipamiento de ejercicio es',
+  'visible (ej: mancuernas, barra, banco, maquina de poleas, banda elastica, kettlebell, etc).',
   'Responde solo con este JSON exacto, sin texto adicional ni markdown:',
-  '{"equipment": ["item1", "item2"], "summary": "resumen breve en espanol de 1-2 oraciones sobre que rutinas se podrian hacer con este equipo"}',
+  '{"is_environment": true, "equipment": ["item1", "item2"], "summary": "resumen breve en espanol de 1-2 oraciones sobre que rutinas se podrian hacer con este equipo"}',
 ].join(' ');
 
 const environmentResultSchema = z.object({
+  is_environment: z.boolean().default(true),
   equipment: z.array(z.string()).default([]),
   summary: z.string().default(''),
 });
@@ -44,7 +50,7 @@ function parseEnvironmentResult(rawText: string) {
     // fall through to the raw-text fallback below
   }
 
-  return { equipment: [], summary: rawText.trim() };
+  return { is_environment: true, equipment: [], summary: rawText.trim() };
 }
 
 export async function analyzeAndSaveEnvironmentImage(
@@ -54,7 +60,14 @@ export async function analyzeAndSaveEnvironmentImage(
   mimeType: string,
 ) {
   const rawText = await analyzeImageWithPrompt(image, mimeType, ENVIRONMENT_PROMPT);
-  const { equipment, summary } = parseEnvironmentResult(rawText);
+  const { is_environment, equipment, summary } = parseEnvironmentResult(rawText);
+
+  if (!is_environment) {
+    throw new ValidationError(
+      'La imagen no parece mostrar un espacio o equipo de entrenamiento. Sube una foto de tu gimnasio o equipo.',
+    );
+  }
+
   const path = buildImageStoragePath('environment-images', auth.userId, `${randomUUID()}.jpg`);
 
   await uploadImage(supabase, env.SUPABASE_ENVIRONMENT_IMAGES_BUCKET, path, image, mimeType);

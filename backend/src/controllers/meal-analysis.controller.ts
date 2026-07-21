@@ -1,4 +1,5 @@
 import { getRequestAuth, getRequestSupabase } from '../middlewares/auth.middleware';
+import { generateMealAnalysisNarration } from '../services/analysisNarration.service';
 import {
   analyzeAndSaveMealImage,
   clearMyMealAnalyses,
@@ -29,4 +30,14 @@ export const listMealAnalysesController = asyncHandler(async (req, res) => {
 export const clearMealAnalysesController = asyncHandler(async (req, res) => {
   await clearMyMealAnalyses(getRequestSupabase(req), getRequestAuth(req));
   return sendSuccess(res, { cleared: true });
+});
+
+export const createMealAnalysisNarrationController = asyncHandler(async (req, res) => {
+  const access = await generateMealAnalysisNarration(
+    getRequestSupabase(req),
+    getRequestAuth(req),
+    req.params.id,
+  );
+
+  return sendSuccess(res, access, 201);
 });
